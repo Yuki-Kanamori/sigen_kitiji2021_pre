@@ -155,3 +155,39 @@ s_number_age = ddply(length, .(age), summarize, sum_n = sum(number))
 mean_length_weight_at_age = left_join(s_length_age, s_number_age, by = "age") %>% mutate(mean_cm = sum_l/sum_n) %>% select(age, mean_cm) %>% mutate(mean_mm = mean_cm*10) %>% mutate(weight = (1.86739*10^(-5))*(mean_mm^3.06825547)) 
 write.csv(mean_length_weight_at_age, "mean_length_weight_at_age.csv")
 
+
+
+# -------------------------------------------------------------------------
+# 2-3  漁獲量まとめ
+#      (引き継ぎ資料の2-3部分)
+# -------------------------------------------------------------------------
+
+# step 1; summary ---------------------------------------------------------
+okisoko = read.xlsx("okisoko_after2019.xlsx", sheet = "2020")
+summary(okisoko$魚種名)
+colnames(okisoko)
+summary(okisoko)
+
+okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+  mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
+
+catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(catch)) %>% tidyr::spread(key = area, value = sum)
+catch_t1[is.na(catch_t1)] = 0
+
+catch_t2 = ddply(okisoko, .(area), summarize, sum = sum(catch))
+catch_t2[is.na(catch_t2)] = 0
+
+catch_t3 = ddply(okisoko, .(method, area), summarize, sum = sum(catch)) %>% tidyr::spread(key = method, value = sum)
+catch_t3[is.na(catch_t3)] = 0
+
+effort_t1 = ddply(okisoko, .(method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = method, value = sum)
+effort_t1[is.na(effort_t1)] = 0
+
+effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
+effort_t2[is.na(effort_t2)] = 0
+
+write.csv(catch_t1, "catch_t1.csv", fileEncoding = "CP932")
+write.csv(catch_t2, "catch_t2.csv", fileEncoding = "CP932")
+write.csv(catch_t3, "catch_t3.csv", fileEncoding = "CP932")
+write.csv(effort_t1, "effort_t1.csv", fileEncoding = "CP932")
+
