@@ -191,3 +191,15 @@ write.csv(catch_t2, "catch_t2.csv", fileEncoding = "CP932")
 write.csv(catch_t3, "catch_t3.csv", fileEncoding = "CP932")
 write.csv(effort_t1, "effort_t1.csv", fileEncoding = "CP932")
 
+
+# step 2; summary of the data derived from prefectures --------------------
+
+
+
+### iwate
+iwa = read.xlsx("catch_pref.xlsx", sheet = "iwa") %>% select(漁業種名, "合計") %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
+iwa_sum = iwa
+iwa_sum$method
+# iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
+iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
+iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
