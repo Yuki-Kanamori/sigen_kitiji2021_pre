@@ -222,3 +222,18 @@ miya2$method
 miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
 miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
 
+
+### fukusima
+fuku = read.xlsx("catch_pref.xlsx", sheet = "fuku", startRow = 2) %>% 
+  select(沖合底びき網) %>% 
+  mutate(method = paste0("沖合底びき網")) %>% 
+  dplyr::rename(catch_kg = 沖合底びき網) %>% 
+  na.omit %>% 
+  dplyr::group_by(method) %>% 
+  dplyr::summarize(sum = sum(catch_kg))
+fuku_sum = fuku
+fuku_sum$method
+fuku_sum$method2 = c("沖底")
+fuku_sum = fuku_sum %>% select(-method)
+
+
