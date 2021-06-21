@@ -237,3 +237,17 @@ fuku_sum$method2 = c("沖底")
 fuku_sum = fuku_sum %>% select(-method)
 
 
+### ibaraki
+iba = read.xlsx("catch_pref.xlsx", sheet = "iba", startRow = 4)
+iba = iba[13, ] 
+iba = iba %>% mutate(method2 = "沖底")
+iba = iba[, 3:4]
+colnames(iba)[1] = "sum"
+# iba = iba %>% dplyr::rename(method = 漁法) %>% mutate(num = as.numeric(as.character(as.factor(iba$年計))))
+# iba = iba %>% filter(method != "小計") %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(num))
+# iba_sum = iba
+# iba_sum$method
+# iba_sum$method2 = c("その他", "延縄", "沖底", "小底", "小底")
+# iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+iba_sum = iba
+
