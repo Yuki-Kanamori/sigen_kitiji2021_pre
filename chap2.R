@@ -132,3 +132,26 @@ number_at_age2 = rbind(number_at_age2, num_ac2)
 
 number_at_age2[2,5] = number_at_age2[nrow(number_at_age2), 5]
 write.csv(number_at_age2, "number_at_age_exp.csv")
+
+
+
+
+
+# -------------------------------------------------------------------------
+# 2-2  年齢別資源体重の算出
+#      (引き継ぎ資料の2-2部分) 
+# -------------------------------------------------------------------------
+
+# step 1; calculate the weight at age, or at length -----------------------
+number_at_age3 = number_at_age2[-nrow(number_at_age2), ] %>% gather(key = length, value = number, 2:ncol(number_at_age2))
+number_at_age3 = number_at_age2 %>% gather(key = length, value = number, 2:ncol(number_at_age2)) %>% filter(age != "total")
+summary(number_at_age3)
+mode(number_at_age3$age)
+length = number_at_age3 %>% mutate(sum_length = (as.numeric(as.character(as.factor(length))) + 0.5)*number)
+
+s_length_age = ddply(length, .(age), summarize, sum_l = sum(sum_length))
+s_number_age = ddply(length, .(age), summarize, sum_n = sum(number))
+
+mean_length_weight_at_age = left_join(s_length_age, s_number_age, by = "age") %>% mutate(mean_cm = sum_l/sum_n) %>% select(age, mean_cm) %>% mutate(mean_mm = mean_cm*10) %>% mutate(weight = (1.86739*10^(-5))*(mean_mm^3.06825547)) 
+write.csv(mean_length_weight_at_age, "mean_length_weight_at_age.csv")
+
