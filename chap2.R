@@ -108,3 +108,27 @@ age_composition = rbind(age_composition, a_sum2)
 # write.csv(age_composition, "age_composition.csv", fileEncoding = "CP932")
 write.csv(age_composition, "number_at_age_freq.csv", fileEncoding = "CP932")
 # freq at age?
+
+
+# step 5; calculate the number at age ---------------------------------------------
+# get survey data and make dataframe
+len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
+summary(len_num)
+# len_num2 = ddply(NatL, .(age_j), summarize, number = sum(number))
+len_num2 = len_num %>% dplyr::group_by(age_j) %>% dplyr::summarize(number = sum(number)) %>% mutate(length_cate = as.numeric(str_sub(age_j, 3, 4))) %>% select(-age_j)
+
+summary(len_num2)
+AC2 = left_join(AC, len_num2, by = "length_cate") %>% mutate(bisu = freq*number)
+num_ac2 = ddply(AC2, .(length_cate), summarize, total = mean(number))
+
+number_at_age2 = AC2 %>% select(length_cate, age, bisu) %>% tidyr::spread(key = length_cate, value = bisu)
+num_ac2 = num_ac2 %>% tidyr::spread(key = length_cate, value = total) %>% mutate(age = "total")
+
+number_at_age2 = rbind(number_at_age2, num_ac2)
+# x = number_at_age2[1:(nrow(number_at_age2)-1), 2:ncol(number_at_age2)]
+# apply(x, 2, sum) - number_at_age2[nrow(number_at_age2), 2:ncol(number_at_age2)]
+
+number_at_age2[2,5] = number_at_age2[nrow(number_at_age2), 5]
+write.csv(number_at_age2, "number_at_age_exp.csv")
