@@ -203,3 +203,22 @@ iwa_sum$method
 # iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
 iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
 iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### miyagi
+miya = read.xlsx("catch_pref.xlsx", sheet = "miya", startRow = 4)
+miya = miya[, c(1,2,ncol(miya))]
+miya_l = miya %>% filter(魚種コード == "きちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+miya_s = miya %>% filter(魚種コード == "こきちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+
+miya2 = left_join(miya_l, miya_s, by = "method")
+miya2[is.na(miya2)] = 0
+miya2 = miya2 %>% mutate(sum_temp = sum.x+sum.y) %>% select(method, sum_temp)
+# miya_sum = miya2 %>% filter(method != "その他漁業種") %>% filter(method != "その他漁業種・全漁法2") %>% filter(method != "沿岸小漁")
+# miya_sum$method
+# miya_sum$method2 = c("沖底", "刺網", "延縄") #沿岸小漁=その他
+# miya_sum = miya_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+miya2$method
+miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
+miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
