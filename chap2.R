@@ -5,6 +5,7 @@
 # load the packages -------------------------------------------------------
 require(xlsx)
 require(openxlsx)
+require(readxl)
 require(tidyr)
 require(dplyr)
 require(plyr)
@@ -365,3 +366,116 @@ th = theme(panel.grid.major = element_blank(),
 # fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2019, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))+scale_linetype_manual(values = c("dotted", "solid", "dotted"))
 fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_linetype_manual(values = c("dotted", "solid", "dotted"),)+ guides(linetype=FALSE, fill = FALSE)+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))
 ggsave(file = "fig6.png", plot = fig6, units = "in", width = 11.69, height = 8.27)
+
+
+# step 3; CPUE trend ----------------------------------------------------------
+# -2018
+gyo_old = read.csv("okisoko_old.csv", fileEncoding = "CP932")
+unique(gyo_old$method)
+
+# 2019-
+sheets = excel_sheets("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/okisoko_after2019.xlsx") #シート名の取得
+cpue = NULL
+for(i in 1:length(sheets)){
+  data = read.xlsx("okisoko_after2019.xlsx", sheet = sheets[i])
+  data2 = data %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+    mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% filter(漁区名 != "襟裳西")
+  
+  temp_cpue = data2 %>% group_by(method) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計)) %>% mutate(year = as.numeric(paste0(sheets[i])))
+  cpue = rbind(cpue, temp_cpue)
+}
+
+cpue2 = rbind(gyo_old, cpue) %>% mutate(cpue = catch/effort)
+mean_cpue = ddply(cpue2, .(method), summarize, m_cpue = mean(cpue))
+cpue2 = left_join(cpue2, mean_cpue, by = "method") %>% mutate(cpue2 = cpue/m_cpue) %>% mutate(bunsi = catch*cpue2)
+
+y_cpue = ddply(cpue2, .(year), summarize, bunsi = sum(bunsi))
+y_catch = ddply(cpue2, .(year), summarize, total_catch = sum(catch))
+w_cpue = left_join(y_cpue, y_catch, by = "year") %>% mutate(weighted_cpue = bunsi/total_catch)
+
+# cpue2 = cpue2 %>% mutate(label = ifelse(cpue2$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(cpue2$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き")))
+cpue2$label = ifelse(cpue2$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(cpue2$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き"))
+unique(cpue2$label)
+levels(cpue2$label)
+cpue2$label = factor(cpue2$label, levels = c("尻屋崎〜岩手沖のかけ廻し", "岩手沖の2そう曳き", "金華山~房総のトロール"))
+
+
+table4 = data2  %>% group_by(method,漁区名) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計))
+table4$cpue = table4$catch/table4$effort
+table4
+write.csv(table4, "table4.csv")
+
+
+### かけ廻し
+g = ggplot(cpue2 %>% filter(method == "かけ廻し"), aes(x = year, y = cpue, shape = label, fill = label))
+p = geom_point(shape = 22, size = 4, fill = "white")
+l = geom_line(linetype = "dotted", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.6)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+kake = g+l+p+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 60))
+
+### 2そう
+g = ggplot(cpue2 %>% filter(method == "2そう曳き"), aes(x = year, y = cpue, shape = label))
+p = geom_point(shape = 17, size = 5)
+l = geom_line(linetype = "solid", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.6)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+niso = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand = c(0, 0.5))+scale_y_continuous(limits = c(0, 300))
+
+### トロール
+g = ggplot(cpue2 %>% filter(method == "トロール"), aes(x = year, y = cpue, shape = label))
+p = geom_point(shape = 18, size = 6)
+l = geom_line(linetype = "dotted", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.6)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+tra = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 120))
+
+### weighted CPUE
+w_cpue$label = "太平洋北部"
+g = ggplot(w_cpue, aes(x = year, y = weighted_cpue))
+p = geom_point(shape = 20, size = 6)
+l = geom_line(size = 0.6, linetype = "solid")
+lab = labs(x = "年", y = "重み付CPUE \n（相対値）", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           # axis.title.x = element_text(size = rel(2)),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.6)),
+           axis.title.y = element_text(size = rel(1.6)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+w = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(min(w_cpue$year), max(w_cpue$year), by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 3))
+
+fig8 = grid.arrange(kake, niso, tra, w, ncol = 1)
+ggsave(file = "fig8.png", plot = fig8, units = "in", width = 9.5, height = 11.69)
+
