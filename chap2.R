@@ -265,3 +265,103 @@ colnames(iba)[1] = "sum"
 # iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
 iba_sum = iba
 
+
+merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
+colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
+merge[is.na(merge)] = 0
+write.csv(merge, "catch_by_method&pref.csv", fileEncoding = "CP932")
+
+
+
+# -------------------------------------------------------------------------
+# 2-4  資源量計算とABCの算定
+#      (引き継ぎ資料の2-4部分)
+# -------------------------------------------------------------------------
+
+# step 1; catch trend -----------------------------------------------------
+catch_old = read.csv("catchdata_old.csv", fileEncoding = "CP932") %>% na.omit()
+catch_old = catch_old[, c(1, 3:5)]
+catch_old = catch_old %>% tidyr::gather(key = method, value = sum, 2:4) %>% dplyr::rename(year = 年)
+catch_old = catch_old %>% mutate(method2 = ifelse(str_detect(catch_old$method, pattern = "以外"), "沖底・小底以外", catch_old$method)) %>% select(-method) %>% dplyr::rename(method = method2)
+summary(catch_old)
+
+c19 = read.csv("catch2019.csv", fileEncoding = "CP932") %>% select(-X)
+
+catch_new = rbind(ao_sum, iwa_sum, miya_sum, fuku_sum, iba_sum) %>% mutate(年 = 2020)
+catch_new = catch_new %>% mutate(method = ifelse(str_detect(catch_new$method2, pattern = "沖底"), "沖底", ifelse(str_detect(catch_new$method2, pattern = "小底"), "小底", "沖底・小底以外"))) %>% select(-method2) %>% dplyr::rename(year = 年) %>% dplyr::rename(catch_kg = sum) %>% mutate(sum = catch_kg/1000)
+summary(catch_new)
+write.csv(catch_new, "catch2020.csv", fileEncoding = "CP932")
+
+colnames(catch_new)
+colnames(catch_old)
+catch = rbind(catch_old, c19 %>% select(-catch_kg), catch_new %>% select(-catch_kg))
+summary(catch)
+catch = catch %>% dplyr::group_by(method, year) %>% dplyr::summarize(catch_t = sum(sum))
+
+unique(catch$method)
+levels(catch$method) 
+catch$method = factor(catch$method, levels = c("沖底・小底以外", "小底", "沖底"))
+
+g = ggplot(catch, aes(x = year, y = catch_t, fill = method))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+lab = labs(x = "年", y = "漁獲量 (トン)", fill = "漁業種")
+col_catch = c("grey50", "white", "grey0")
+c = scale_fill_manual(values = col_catch)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.85, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 3))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
+ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
+
+
+
+# step 2; effort trend ----------------------------------------------------
+# ~2018まで
+eff_old = read.csv("effortdata_old.csv", fileEncoding = "CP932")
+eff_old = ddply(eff_old, .(method, year), summarize, sum = sum(effort))
+
+#2019
+oki2019 = read.xlsx("okisoko_after2019.xlsx", sheet = "2019")
+oki2019 = oki2019 %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+  mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
+
+eff19 = ddply(oki2019, .(method), summarize, sum = sum(effort))
+eff19$year = 2019
+
+#2020; 上の方で使っている
+eff = ddply(okisoko, .(method), summarize, sum = sum(effort))
+eff$year = 2020
+
+eff = rbind(eff_old, eff19, eff)
+eff = eff %>% mutate(label = ifelse(eff$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(eff$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き")))
+
+unique(eff$label)
+levels(eff$label)
+eff$label = factor(eff$label, levels = c("尻屋崎〜岩手沖のかけ廻し", "岩手沖の2そう曳き", "金華山~房総のトロール"))
+
+g = ggplot(eff, aes(x = year, y = sum/1000, shape = label, linetype = label, fill = label))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+lab = labs(x = "年", y = "有漁網数 (千)", shape = "漁業種")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(2)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.8, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+# fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2019, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))+scale_linetype_manual(values = c("dotted", "solid", "dotted"))
+fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_linetype_manual(values = c("dotted", "solid", "dotted"),)+ guides(linetype=FALSE, fill = FALSE)+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))
+ggsave(file = "fig6.png", plot = fig6, units = "in", width = 11.69, height = 8.27)
