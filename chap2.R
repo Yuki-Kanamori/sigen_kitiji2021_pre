@@ -113,7 +113,8 @@ write.csv(age_composition, "number_at_age_freq.csv", fileEncoding = "CP932")
 
 # step 5; calculate the number at age ---------------------------------------------
 # get survey data and make dataframe
-len_num = read.xlsx("q_魚種別体長別資源量2020.xlsx") %>% filter(和名 == "キチジ N 計" | 和名 == "キチジ S 計") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+# len_num = read.xlsx("q_魚種別体長別資源量2020.xlsx") %>% filter(和名 == "キチジ N 計" | 和名 == "キチジ S 計") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
 len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
 len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
 summary(len_num)
@@ -565,7 +566,7 @@ for(i in 1:length(sheets)){
   
   # step 4; calculate the number at age ---------------------------------------------
   # get survey data and make dataframe
-  len_num = read.xlsx("q_魚種別体長別資源量2020.xlsx") %>% filter(和名 == "キチジ N 計" | 和名 == "キチジ S 計") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == sheets[i]) %>% select(-year)
+  len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == sheets[i]) %>% select(-year)
   len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
   len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
   summary(len_num)
