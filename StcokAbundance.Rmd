@@ -700,12 +700,14 @@ th = theme(panel.grid.major = element_blank(),
            strip.text.x = element_text(size = rel(1.5)),
            legend.position = c(0.1, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
-level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
-level_h = geom_hline(yintercept = high/1000, linetype = "dashed", color = "gray50")
+level_l = geom_hline(yintercept = low/1000000, linetype = "dashed", color = "gray50")
+level_h = geom_hline(yintercept = high/1000000, linetype = "dashed", color = "gray50")
 oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))+level_h+level_l
 
 fig14 = grid.arrange(ko, oya, ncol = 1)
 fig14
+check_trend2 = srr1 %>% filter(year2 > 2013)
+summary(lm(biomass/1000000 ~ year2, data = check_trend2))
 ```
 
 ###
