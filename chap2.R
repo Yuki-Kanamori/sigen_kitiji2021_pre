@@ -857,6 +857,8 @@ mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(s
 ### figures 
 ### year trend of stock biomass (fig. 10)
 trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass))
+# %>% mutate(tag = ifelse(year < 2017, "black", "red"))
+# trend$tag = factor(trend$tag, levels = c("black", "red"))
 low = (max(trend$total)-min(trend$total))*1/3+min(trend$total)
 high = max(trend$total)-(max(trend$total)-min(trend$total))*1/3
 
