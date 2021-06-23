@@ -401,11 +401,11 @@ mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(s
   
   
 ```{r plot_trend_biomass, echo=FALSE, warning=FALSE, message=F}
-trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass)) %>% mutate(tag = ifelse(year < 2017, "black", "red"))
+trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass))
 low = (max(trend$total)-min(trend$total))*1/3+min(trend$total)
 high = max(trend$total)-(max(trend$total)-min(trend$total))*1/3
 
-g = ggplot(trend, aes(x = year, y = total/1000, colour = tag))
+g = ggplot(trend, aes(x = year, y = total/1000))
 p = geom_point(shape = 20, size = 6)
 l = geom_line(size = 0.6, linetype = "solid")
 lab = labs(x = "年", y = "資源量（トン）", shape = "")
@@ -419,7 +419,7 @@ th = theme(panel.grid.major = element_blank(),
            strip.text.x = element_text(size = rel(1.5)))
 level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
 level_h = geom_hline(yintercept = high/1000, linetype = "dashed", color = "gray50")
-fig10 = g+p+l+lab+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+scale_colour_manual(colour = c("black", "red"))+level_l+level_h
+fig10 = g+p+l+lab+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1996, 2021, by = 2), expand = c(0.03, 0.03))+level_l+level_h+annotate("text",label="横ばい \n（直近5年の推移より）", x=2018, y=7.8, family="HiraKakuPro-W3", size = 4.5)
 fig10
 ```
   
@@ -430,11 +430,11 @@ trend %>% filter(year > 2010) %>% spread(key = year, value = total)
 ```
   
   
-### トレンド: 横ばい
-```{r trend, echo=F, warning=F, message=F}
-check_trend = trend %>% filter(year > 2016)
-summary(lm(total/1000 ~ year, data = check_trend))
-```
+<!-- ### トレンド: 横ばい -->
+<!-- ```{r trend, echo=F, warning=F, message=F} -->
+<!-- check_trend = trend %>% filter(year > 2016) -->
+<!-- summary(lm(total/1000 ~ year, data = check_trend)) -->
+<!-- ``` -->
   
   
 ### 資源尾数
@@ -470,6 +470,11 @@ th = theme(panel.grid.major = element_blank(),
 c = scale_fill_manual(values =  c("black", "white"))
 fig11 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 150))
 fig11
+```
+  
+  
+```{r table_numbers, echo=F}
+est2 %>% filter(year == 2021) %>% dplyr::rename(age = age2)
 ```
   
   
