@@ -172,25 +172,25 @@ summary(okisoko)
 okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
   mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
 
-catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(catch)) %>% tidyr::spread(key = area, value = sum)
+catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
 catch_t1[is.na(catch_t1)] = 0
 
-catch_t2 = ddply(okisoko, .(area), summarize, sum = sum(catch))
+catch_t2 = ddply(okisoko, .(area), summarize, sum_kg = sum(catch))
 catch_t2[is.na(catch_t2)] = 0
 
-catch_t3 = ddply(okisoko, .(method, area), summarize, sum = sum(catch)) %>% tidyr::spread(key = method, value = sum)
+catch_t3 = ddply(okisoko, .(method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = method, value = sum)
 catch_t3[is.na(catch_t3)] = 0
 
-effort_t1 = ddply(okisoko, .(method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = method, value = sum)
+effort_t1 = ddply(okisoko, .(method, area), summarize, sum= sum(effort)) %>% tidyr::spread(key = method, value = sum)
 effort_t1[is.na(effort_t1)] = 0
 
-effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
+effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(effort)) %>% tidyr::spread(key = area, value = sum)
 effort_t2[is.na(effort_t2)] = 0
 
 write.csv(catch_t1, "catch_t1.csv", fileEncoding = "CP932")
 write.csv(catch_t2, "catch_t2.csv", fileEncoding = "CP932")
-write.csv(catch_t3, "catch_t3.csv", fileEncoding = "CP932")
-write.csv(effort_t1, "effort_t1.csv", fileEncoding = "CP932")
+write.csv(catch_t3, "table2.csv", fileEncoding = "CP932")
+write.csv(effort_t1, "table3.csv", fileEncoding = "CP932")
 
 
 # step 2; summary of the data derived from prefectures --------------------
@@ -270,7 +270,7 @@ iba_sum = iba
 merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
 colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
 merge[is.na(merge)] = 0
-write.csv(merge, "catch_by_method&pref.csv", fileEncoding = "CP932")
+write.csv(merge, "table1.csv", fileEncoding = "CP932")
 
 
 
