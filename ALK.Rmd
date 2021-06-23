@@ -21,13 +21,12 @@ require(abind)
 require(gridExtra)
 require(ggrepel)
 
-setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
-
+#setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
+dir = "/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/"
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
+***
 ## Age Length Key
-
 ```{r make_ALK, echo=FALSE, warning=FALSE}
 df = read.xlsx("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/ALdata.xlsx", sheet = "2020") %>% filter(pick == 1) %>% select(label, SL, age)
 
@@ -97,11 +96,36 @@ age_composition = rbind(age_composition, a_sum2)
 plotFit(fit, interval = "prediction", ylim = c(0, 250), pch = 19, col.pred = 'light blue', shade=T)
 summary(fit)
 ```
-
-## Age composition
-```{r age_composition, echo=FALSE}
-options(digits=2)
+  
+  
+***
+## Frequency
+```{r age_composition_freq, echo=FALSE}
+options(digits=2) #桁数の指定
 colnames(age_composition)[1] = "age/length"
 (age_composition)
+```
+  
+  
+***
+## Numbers
+```{r age_composition_numbers, echo=FALSE, warning=FALSE, message=FALSE}
+len_num = read.csv(paste0(dir, "/survey_N_at_length.csv"), fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
+len_num2 = len_num %>% dplyr::group_by(age_j) %>% dplyr::summarize(number = sum(number)) %>% mutate(length_cate = as.numeric(str_sub(age_j, 3, 4))) %>% select(-age_j)
+
+AC2 = left_join(AC, len_num2, by = "length_cate") %>% mutate(bisu = freq*number)
+num_ac2 = ddply(AC2, .(length_cate), summarize, total = mean(number))
+
+number_at_age2 = AC2 %>% select(length_cate, age, bisu) %>% tidyr::spread(key = length_cate, value = bisu)
+num_ac2 = num_ac2 %>% tidyr::spread(key = length_cate, value = total) %>% mutate(age = "total")
+
+number_at_age2 = rbind(number_at_age2, num_ac2)
+
+number_at_age2[2,5] = number_at_age2[nrow(number_at_age2), 5]
+colnames(number_at_age2)[1] = "age/length"
+options(scipen=1) #eを使わないように
+(number_at_age2)
 ```
 
