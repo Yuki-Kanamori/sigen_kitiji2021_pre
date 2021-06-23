@@ -1180,7 +1180,8 @@ oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(b
 
 fig14 = grid.arrange(ko, oya, ncol = 1)
 ggsave(file = "fig14.png", plot = fig14, units = "in", width = 11.69, height = 8.27)
-
+check_trend2 = srr1 %>% filter(year2 > 2013)
+summary(lm(biomass/1000000 ~ year2, data = check_trend2))
 
 
 srr2 = srr %>% na.omit() %>% mutate(year3 = ifelse(year2 == 1996, 1996, ifelse(year2 == 2018, 2018, NA)))
