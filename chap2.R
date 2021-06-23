@@ -1141,21 +1141,42 @@ th = theme(panel.grid.major = element_blank(),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 ko = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))
 
-g = ggplot(srr %>% na.omit(), aes(x = year2, y = biomass/1000000))
+# g = ggplot(srr %>% na.omit(), aes(x = year2, y = biomass/1000000))
+# p = geom_point(size = 5)
+# l = geom_line(size = 1)
+# lab = labs(x = "年級", y = "雌親魚量（トン）")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.8)),
+#            axis.title.y = element_text(size = rel(1.8)),
+#            legend.title = element_blank(),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.1, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+# oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))
+
+srr1 = srr %>% na.omit()
+low = (max(srr1$biomass)-min(srr1$biomass))*1/3+min(srr1$biomass)
+high = max(srr1$biomass)-(max(srr1$biomass)-min(srr1$biomass))*1/3
+g = ggplot(srr1, aes(x = year2, y = biomass/1000000))
 p = geom_point(size = 5)
 l = geom_line(size = 1)
 lab = labs(x = "年級", y = "雌親魚量（トン）")
 th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
-           axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.8)),
-           axis.title.y = element_text(size = rel(1.8)),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
-           strip.text.x = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.5)),
            legend.position = c(0.1, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
-oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))
+level_l = geom_hline(yintercept = low/1000000, linetype = "dashed", color = "gray50")
+level_h = geom_hline(yintercept = high/1000000, linetype = "dashed", color = "gray50")
+oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))+level_h+level_l
 
 fig14 = grid.arrange(ko, oya, ncol = 1)
 ggsave(file = "fig14.png", plot = fig14, units = "in", width = 11.69, height = 8.27)
