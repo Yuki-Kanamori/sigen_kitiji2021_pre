@@ -1,5 +1,6 @@
 est_abundance = function(dir_input, fileEncoding){
   setwd(dir = dir_input)
+  options(warn = -1)
   
   # -2018
   olddata = read.csv(paste0(dir_input, "/olddata_trawl.csv")) 
