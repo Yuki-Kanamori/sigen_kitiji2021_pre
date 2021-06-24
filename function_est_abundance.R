@@ -24,15 +24,15 @@ est_abundance = function(dir_input, fileEncoding){
     #ALK
     df2 = na.omit(df)
     summary(df2)
-    
+
     # step 2; fit the von Bertalanffy growth curve and estimate params --------
     # Lt = L_max*(1-e^(-K(t-t0)))
     mode(df2$age_num)
     mode(df2$length_mm)
-    
+
     Lmax = 320
     fit = nls(length_mm ~ Lmax*(1-exp(-K*((age_num+0.5) - t0))), data = df2, start = c(K = 0.01, t0 = -3), trace = TRUE)
-    summary(fit)
+    fit2 = summary(fit)
     
     # plot (https://stackoverflow.com/questions/33305620/plotting-nls-fits-with-overlapping-prediction-intervals-in-a-single-figure)
     #plotFit(fit, interval = "prediction", ylim = c(0, 250), pch = 19, col.pred = 'light blue', shade=T)
@@ -618,9 +618,9 @@ est_abundance = function(dir_input, fileEncoding){
   write.csv(number_at_age %>% dplyr::rename(age_length = age), "number_at_age.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(est, "estimated_abundance.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(weight, "weight_at_age.csv", fileEncoding = fileEncoding, row.names=F)
-  write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data, -data2), "fishing_trend.csv", fileEncoding = fileEncoding, row.names=F)
+  write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "fishing_trend.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(abc_table, paste0(dir_output, "/abc_table.csv"), fileEncoding = fileEncoding, row.names=F)
-  write.csv(summary(fit), "ALK_fit.csv", fileEncoding = fileEncoding)
+  write.csv(fit2$coefficients, "ALK_fit.csv", fileEncoding = fileEncoding)
   
   ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
   ggsave(file = "fig11.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
