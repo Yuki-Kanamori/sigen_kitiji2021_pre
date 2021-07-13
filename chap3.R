@@ -40,6 +40,8 @@ require(plyr)
 require(ggplot2)
 require(maps)
 require(mapdata)
+require(cowplot)
+require(mapdata)
 require(investr)
 require(stringr)
 require(gridExtra)
@@ -55,17 +57,6 @@ require(ggrepel)
 
 
 # 3-1 図4: 漁場の空間分布 --------------------------------------------------------------
-# load the packages -------------------------------------------------------
-require(tidyr)
-require(dplyr)
-require(plyr)
-require(ggplot2)
-require(maps)
-require(mapdata)
-require(stringr)
-require(cowplot)
-
-
 # please change here -----------------------------------------------------------
 # set working directory
 setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
