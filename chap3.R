@@ -215,20 +215,107 @@ ggsave(file = "figA31C.png", plot = figa31c, units = "in", width = 11.69, height
 # ---------------------------------------------------------------
 # 3-56  補足図3-2; 年齢別体長組成（調査） ---------------------------------
 # ---------------------------------------------------------------
-age_comp = read.csv("number_at_age_freq.csv")
-age_comp = age_comp[-nrow(age_comp), -1]
-age_comp = age_comp %>% gather(key = l, value = freq, 2:ncol(age_comp))
-age_comp = age_comp %>% mutate(size_class = as.numeric(str_sub(age_comp$l, 2,3))) %>% select(-l)
+sheets = excel_sheets("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/ALdata.xlsx") #シート名の取得
+freq_at_age_table = NULL
+for(i in 1:length(sheets)){
+  options(warn=-1)
+  df = read.xlsx("ALdata.xlsx", sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
+  summary(df)
+  mode(df$age)
+  
+  # step 1; remove the data that age is 10+, 10++, and ? --------------------
+  df = df %>% mutate(length_mm = SL, age_num = as.numeric(as.character(age))) #10+, 10++, and ? turned NA
+  summary(df)
+  
+  # step 2; make the tables of number at age (NAA)
+  # !!note!!  use 10+ and 10++
+  head(df)
+  df3 = df %>% select(SL, age) %>% dplyr::rename(length_mm = SL)
+  summary(df3)
+  head(df3)
+  unique(df3$age)
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)))
+  
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)),
+                       age2 = ifelse(df3$age == "10+", 10, ifelse(df3$age > 9, 10, as.character(df3$age)))) %>% filter(fumei != 100) %>% select(-fumei) %>% mutate(count = 1)
+  unique(df3$age2)
+  df3$age2 = as.numeric(df3$age2)
+  summary(df3$age2)
+  df3$age3 = ifelse(df3$age2 > 10, 10, df3$age2)
+  df3 = na.omit(df3)
+  summary(df3)
+  naa = ddply(df3, .(length_mm, age3), summarize, number = sum(count))
+  
+  length_mm = rep(seq(min(df3$length_mm), max(df3$length_mm)), length(unique(df3$age3))+1) #1761rows
+  age_num = rep(0:max(df3$age3), each = length(unique(length_mm)))
+  tag = data_frame(length_mm = length_mm, age_num = age_num)
+  tag = tag %>% mutate(length_cate = ifelse(length_mm < 100, str_sub(tag$length_mm, 1, 1), str_sub(tag$length_mm, 1, 2)))
+  
+  head(naa)
+  head(tag)
+  
+  naa = naa %>% dplyr::rename(age = age3)
+  tag = tag %>% dplyr::rename(age = age_num)
+  
+  naa2 = merge(naa, tag, by = c("length_mm", "age"), all = T)
+  naa2$number = ifelse(is.na(naa2$number), 0, naa2$number)
+  summary(naa2)
+  NAA = ddply(naa2, .(age, length_cate), summarize, number = sum(number))
+  NAA$length_cate = as.numeric(NAA$length_cate)
+  summary(NAA)
+  
+  # add the data that NAA does not have
+  add = NAA %>% filter(length_cate < min(NAA$length_cate)*2-1)
+  add = add %>% mutate(length_cate = rep(1:(min(add$length_cate)-1)), number = 0)
+  NAA = rbind(add, NAA)
+  NAA = NAA %>% arrange(length_cate, age) 
+  sum = ddply(NAA, .(length_cate), summarize, sum = sum(number))
+  
+  NAA2 = NAA %>% tidyr::spread(key = length_cate, value = number)
+  sum2 = sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  number_at_age = rbind(NAA2, sum2)
+  #write.csv(number_at_age, "number_at_age.csv", fileEncoding = "CP932")
+  
+  # step 3; make the tables of age composition (AC)
+  AC = left_join(NAA, sum, by = "length_cate") %>% mutate(freq = ifelse(sum > 0, number/sum, 0))
+  AC = AC %>% select(length_cate, age, freq)
+  a_sum = ddply(AC, .(length_cate), summarize, sum = sum(freq))
+  
+  age_composition = AC %>% tidyr::spread(key = length_cate, value = freq)
+  a_sum2 = a_sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  age_composition = rbind(age_composition, a_sum2)
+  age_comp = age_composition
+  age_comp = age_comp %>% gather(key = l, value = freq, 2:ncol(age_comp))
+  age_comp = age_comp %>% filter(age != "total") %>% mutate(size_class = as.numeric(str_sub(l, 1,2))) %>% select(-l) %>% mutate(year = sheets[i])
+  
+  len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == as.numeric(sheets[i])) %>% select(-year)
+  len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+  len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
+  surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
+  
+  age_comp = full_join(age_comp, surv_n_total, by = "size_class")
+  age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
+  
+  freq_at_age_table = rbind(freq_at_age_table, age_comp)
+}
 
-len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
-len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
-len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
-surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
 
-head(age_comp)
-head(surv_n_total)
-age_comp = full_join(age_comp, surv_n_total, by = "size_class")
-age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
+
+
+
+# age_comp = read.csv("number_at_age_freq.csv")
+# age_comp = age_comp[-nrow(age_comp), -1]
+# 
+# 
+# len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+# len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+# len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
+# surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
+# 
+# head(age_comp)
+# head(surv_n_total)
+# age_comp = full_join(age_comp, surv_n_total, by = "size_class")
+# age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
 
 
 old = read.csv("survey_N_at_age.csv")
@@ -238,9 +325,9 @@ old = old %>% mutate(size_class = as.numeric(str_sub(old$l, 2, 4))) %>% select(-
 head(old)
 head(age_comp)
 # ここで2019と2020の両方のデータを生成する必要がある．多分chap2の資源量推定のところでも2019の年齢別漁獲量を算出しているから，そこのコードが使えるはず
-now = age_comp %>% mutate(Age = ifelse(age_comp == 10, "10+", age_comp$age), Year = 2019) %>% select(Age, Year, size_class, number) 
+new = freq_at_age_table %>% mutate(Age = ifelse(age == 10, "10+", age), Year = year) %>% select(Age, Year, size_class, number) 
 
-all = rbind(old, now)
+all = rbind(old, new)
 
 
 #figure
