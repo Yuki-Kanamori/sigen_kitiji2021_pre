@@ -1003,7 +1003,7 @@ trend_ns$area = factor(trend_ns$area, levels = c("北部", "南部"))
 
 g = ggplot(trend_ns, aes(x = year, y = biomass_sel, fill = area))
 b = geom_bar(stat = "identity", width = 0.5, colour = "black")
-lab = labs(x = "年", y = "漁獲量（千トン）", legend = NULL)
+lab = labs(x = "年", y = "資源量（千トン）", legend = NULL)
 th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
