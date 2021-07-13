@@ -219,7 +219,7 @@ sheets = excel_sheets("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA
 freq_at_age_table = NULL
 for(i in 1:length(sheets)){
   options(warn=-1)
-  df = read.xlsx("ALdata.xlsx", sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
+  df = read.xlsx("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/ALdata.xlsx", sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
   summary(df)
   mode(df$age)
   
@@ -288,7 +288,7 @@ for(i in 1:length(sheets)){
   age_comp = age_comp %>% gather(key = l, value = freq, 2:ncol(age_comp))
   age_comp = age_comp %>% filter(age != "total") %>% mutate(size_class = as.numeric(str_sub(l, 1,2))) %>% select(-l) %>% mutate(year = sheets[i])
   
-  len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == as.numeric(sheets[i])) %>% select(-year)
+  len_num = read.csv("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == as.numeric(sheets[i])) %>% select(-year)
   len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
   len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
   surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
@@ -318,7 +318,7 @@ for(i in 1:length(sheets)){
 # age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
 
 
-old = read.csv("survey_N_at_age.csv")
+old = read.csv("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/survey_N_at_age.csv")
 old = old %>% gather(key = l, value = number, 3:ncol(old))
 old = old %>% mutate(size_class = as.numeric(str_sub(old$l, 2, 4))) %>% select(-l)
 
