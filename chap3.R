@@ -352,5 +352,5 @@ th = theme(panel.grid.major = element_blank(),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
-figa32 = g+b+lab+c+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(0, 36, by = 5))+scale_y_continuous(expand = c(0,0))
-ggsave(file = "figa32.png", plot = figa32, units = "in", width = 11.69, height = 8.27)
+fig_a32 = g+b+lab+c+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(0, 36, by = 5))+scale_y_continuous(expand = c(0,0))
+ggsave(file = "fig_A32.png", plot = figa32, units = "in", width = 11.69, height = 8.27)

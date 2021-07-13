@@ -177,7 +177,7 @@ est_abundance = function(dir_input, fileEncoding){
   length = rbind(old_length, temp_length)
   summary(length)
   
-  # combine the catch data from the fishing
+  # combine the fisheries catch data
   new_catchF = NULL
   for(i in 1:length(sheets)){
     okisoko = read.xlsx(paste0(dir_input, "/okisoko_after2019.xlsx"), sheet = sheets[i])
@@ -272,7 +272,7 @@ est_abundance = function(dir_input, fileEncoding){
   
   
   
-  ### number at age when selectivity changes at age
+  ### number at age when changing selectivity at age
   abund_oct_sel = NULL
   for(i in min(trawl$year):max(trawl$year)){
     # i = min(trawl$year)
@@ -612,6 +612,127 @@ est_abundance = function(dir_input, fileEncoding){
   abc_table = cbind(abc_limit, abc_target, re_abc_limit, re_abc_target)
   
   
+  # step 7; spawner-recruitment relationship ----------------------------------------------------------
+  ns_rec = ddply(ns, .(year, size_class, size), summarize, number = sum(number))
+  net_eff = data.frame(size = seq(15, 315, 10)) 
+  net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size)), size_class = rep(1:nrow(net_eff)))
+  ns_rec = left_join(ns_rec, net_eff, by = c("size", "size_class"))
+  ns_rec = ns_rec %>% mutate(number_sel = number/q)
+  
+  survival_2month2 = survival_2month %>% mutate(year = year-1)
+  survival_2month2_latest = abind(survival_2month2 %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-2) %>% select(surv), as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% data.frame
+  survival_2month2 = abind(survival_2month2, survival_2month2_latest, along = 1) %>% data.frame() %>% dplyr::rename(year = V2)
+  
+  ns_rec = left_join(ns_rec, survival_2month2, by = "year") %>% mutate(weight = 1.867*10^(-5)*((ns_rec$size_class+0.5)*10)^(3.068))
+  
+  ns_rec2 = ns_rec %>% mutate(number_sel2 = number_sel*surv, year2 = year+1, maturity = 100/(1+exp(-1.967*((size_class+0.5)-15.309)))) %>% mutate(number_adult = number_sel2*maturity*0.01) %>% mutate(biomass_adult = number_adult*weight)
+  
+  biomass_female = ddply(ns_rec2, .(year2), summarize, biomass = sum(biomass_adult)/2)
+  
+  summary(est)
+  rec_number = est %>% select(number, year, age) %>% mutate(year2 = year-3) %>% filter(age == 2)
+  srr = left_join(biomass_female, rec_number, by = "year2")
+  srr = srr %>% mutate(rps = number/(biomass*0.001))
+  
+  ### figures 
+  g = ggplot(srr %>% na.omit(),  aes(x = year2, y = rps))
+  b = geom_bar(stat = "identity", width = 0.5, colour = "black", fill = "black")
+  lab = labs(x = "年級", y = "RPS（尾/kg）", legend = NULL)
+  th = theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+             axis.text.y = element_text(size = rel(1.8), colour = "black"),
+             axis.title.x = element_text(size = rel(1.8)),
+             axis.title.y = element_text(size = rel(1.8)),
+             legend.title = element_blank(),
+             legend.text = element_text(size = rel(1.8)),
+             strip.text.x = element_text(size = rel(1.8)),
+             legend.position = c(0.1, 0.8),
+             legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+  fig13 = g+b+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 60))
+
+  
+  
+  g = ggplot(srr %>% na.omit(), aes(x = year2, y = number/1000000))
+  p = geom_point(size = 5)
+  l = geom_line(size = 1)
+  lab = labs(x = "", y = "2歳魚尾数（百万尾）")
+  th = theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+             axis.text.y = element_text(size = rel(1.8), colour = "black"),
+             axis.title.x = element_text(size = rel(1.8)),
+             axis.title.y = element_text(size = rel(1.8)),
+             legend.title = element_blank(),
+             strip.text.x = element_text(size = rel(1.8)),
+             legend.position = c(0.1, 0.8),
+             legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+  ko = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))
+  srr1 = srr %>% na.omit()
+  low = (max(srr1$biomass)-min(srr1$biomass))*1/3+min(srr1$biomass)
+  high = max(srr1$biomass)-(max(srr1$biomass)-min(srr1$biomass))*1/3
+  g = ggplot(srr1, aes(x = year2, y = biomass/1000000))
+  p = geom_point(size = 5)
+  l = geom_line(size = 1)
+  lab = labs(x = "年級", y = "雌親魚量（トン）")
+  th = theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+             axis.text.y = element_text(size = rel(1.5), colour = "black"),
+             axis.title.x = element_text(size = rel(1.5)),
+             axis.title.y = element_text(size = rel(1.5)),
+             legend.title = element_blank(),
+             strip.text.x = element_text(size = rel(1.5)),
+             legend.position = c(0.1, 0.8),
+             legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+  level_l = geom_hline(yintercept = low/1000000, linetype = "dashed", color = "gray50")
+  level_h = geom_hline(yintercept = high/1000000, linetype = "dashed", color = "gray50")
+  oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))+level_h+level_l
+  
+  fig14 = grid.arrange(ko, oya, ncol = 1)
+  
+  srr2 = srr %>% na.omit() %>% mutate(year3 = ifelse(year2 == 1996, 1996, ifelse(year2 == 2018, 2018, NA)))
+  
+  g = ggplot(srr2, aes(x = biomass/1000000, y = number/1000000, label = year3))
+  p = geom_point(size = 5)
+  l = geom_line(size = 1)
+  pa = geom_path()
+  lab = labs(x = "雌親魚量（トン）", y = "2歳魚尾数（百万尾）")
+  th = theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+             axis.text.y = element_text(size = rel(1.8), colour = "black"),
+             axis.title.x = element_text(size = rel(1.8)),
+             axis.title.y = element_text(size = rel(1.8)),
+             legend.title = element_blank(),
+             strip.text.x = element_text(size = rel(1.8)),
+             legend.position = c(0.1, 0.8),
+             legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+  fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 5800))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+annotate("text", x = 350, y = 3, label = "1996", size = 6)+annotate("text", x = 5000, y = 5, label = "2018", size = 6)
+  
+  
+  # step 8; yearly trend of the survival rate at age 1 ----------------------------------------------------------
+  surv_fig = survival %>% filter(age == 2)
+  surv_fig = surv_fig %>% mutate(temp = as.numeric(str_sub(surv_fig$year, 3, 4))-1) %>% mutate(temp2 = temp+1) 
+  surv_fig = surv_fig %>% mutate(temp3 = ifelse(surv_fig$temp == -1, "99", ifelse(surv_fig$temp < 10, formatC(surv_fig$temp, width = 2, flag = "0"), surv_fig$temp))) %>% mutate(temp4 = ifelse(temp2 < 10, formatC(surv_fig$temp2, width = 2, flag = "0"), ifelse(temp2 == 100, "00", temp2))) %>% mutate(xtitle = paste0(temp3, "→", temp4)) %>% select(surv, xtitle, year)
+  
+  g = ggplot(surv_fig, aes(x = year, y = surv))
+  p = geom_point(size = 5)
+  l = geom_line(size = 1)
+  pa = geom_path()
+  lab = labs(x = "当年", y = "前年1歳魚尾数に対する当年2歳魚尾数の比率")
+  th = theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+             axis.text.y = element_text(size = rel(1.8), colour = "black"),
+             axis.title.x = element_text(size = rel(1.8)),
+             axis.title.y = element_text(size = rel(1.8)),
+             legend.title = element_blank(),
+             strip.text.x = element_text(size = rel(1.8)),
+             legend.position = c(0.1, 0.8),
+             legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+  fig_a41 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+scale_y_continuous(expand = c(0,0),limits = c(0, 12))
+  
   # outputs
   dir.create(paste0(dir_input, "/est_abundance"))
   dir_output = paste0(dir_input, "/est_abundance")
@@ -627,12 +748,37 @@ est_abundance = function(dir_input, fileEncoding){
   ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
   ggsave(file = "fig11.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
   ggsave(file = "fig12.png", plot = fig12, units = "in", width = 11.69, height = 8.27)
-  ggsave(file = "fig_a33.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
+  ggsave(file = "fig13.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
+  ggsave(file = "fig14.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
+  ggsave(file = "fig15.png", plot = fig15, units = "in", width = 11.69, height = 8.27, scale = 0.9)
+  ggsave(file = "fig_A33.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
+  ggsave(file = "fig_A41.png", plot = fig_a41, units = "in", width = 11.69, height = 8.27, scale = 0.9)
   png("ALK.png")
   plotFit(fit, interval = "prediction", ylim = c(0, 250), pch = 19, col.pred = 'light blue', shade=T)
   dev.off()
 }
 
+
+
+# load the packages -------------------------------------------------------
+require(xlsx)
+require(openxlsx)
+require(readxl)
+require(tidyr)
+require(dplyr)
+require(plyr)
+require(ggplot2)
+require(investr)
+require(stringr)
+require(abind)
+require(gridExtra)
+require(ggrepel)
+
+
+# change here ---------------------------------------------------
 dir_input = "/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021"
 fileEncoding = "CP932"
+
+
+# run -----------------------------------------------------------
 est_abundance(dir_input = dir_input, fileEncoding = fileEncoding)
