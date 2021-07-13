@@ -210,3 +210,60 @@ figa31c = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuo
 
 ggsave(file = "figA31C.png", plot = figa31c, units = "in", width = 11.69, height = 8.27)
 
+
+
+# ---------------------------------------------------------------
+# 3-56  補足図3-2; 年齢別体長組成（調査） ---------------------------------
+# ---------------------------------------------------------------
+age_comp = read.csv("number_at_age_freq.csv")
+age_comp = age_comp[-nrow(age_comp), -1]
+age_comp = age_comp %>% gather(key = l, value = freq, 2:ncol(age_comp))
+age_comp = age_comp %>% mutate(size_class = as.numeric(str_sub(age_comp$l, 2,3))) %>% select(-l)
+
+len_num = read.csv("survey_N_at_length.csv", fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == 2020) %>% select(-year)
+len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
+surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
+
+head(age_comp)
+head(surv_n_total)
+age_comp = full_join(age_comp, surv_n_total, by = "size_class")
+age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
+
+
+old = read.csv("survey_N_at_age.csv")
+old = old %>% gather(key = l, value = number, 3:ncol(old))
+old = old %>% mutate(size_class = as.numeric(str_sub(old$l, 2, 4))) %>% select(-l)
+
+head(old)
+head(age_comp)
+# ここで2019と2020の両方のデータを生成する必要がある．多分chap2の資源量推定のところでも2019の年齢別漁獲量を算出しているから，そこのコードが使えるはず
+now = age_comp %>% mutate(Age = ifelse(age_comp == 10, "10+", age_comp$age), Year = 2019) %>% select(Age, Year, size_class, number) 
+
+all = rbind(old, now)
+
+
+#figure
+levels(all$Age)
+unique(all$Age)
+all$age = factor(all$Age, levels = c("1", "2", "3", "4", "5", "5+", "6", "7", "8", "9", "10+"))
+mode(all$size_class)
+summary(all)
+
+g = ggplot(all, aes(x = size_class, y = number/1000000, fill = age))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black", size = 0.5)
+lab = labs(x = "体長 (cm)", y = "資源尾数 (百万尾)", fill = "年齢")
+col_catch = c("red1", "red1", "darkorange", "goldenrod1", "goldenrod4", "grey60", "palegreen3", "palegreen4", "steelblue3", "steelblue4", "grey60")
+c = scale_fill_manual(values = col_catch)
+f = facet_wrap(~ Year, ncol = 5)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(2)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+figa32 = g+b+lab+c+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(0, 36, by = 5))+scale_y_continuous(expand = c(0,0))
+ggsave(file = "figa32.png", plot = figa32, units = "in", width = 11.69, height = 8.27)
