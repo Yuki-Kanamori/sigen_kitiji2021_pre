@@ -31,8 +31,8 @@ est_abundance = function(dir_input, fileEncoding){
     mode(df2$age_num)
     mode(df2$length_mm)
 
-    Lmax = 320
-    fit = nls(length_mm ~ Lmax*(1-exp(-K*((age_num+0.5) - t0))), data = df2, start = c(K = 0.01, t0 = -3), trace = TRUE)
+    #Lmax = 320
+    fit = nls(length_mm ~ 320*(1-exp(-K*((age_num+0.5) - t0))), data = df2, start = c(K = 0.01, t0 = -3), trace = TRUE)
     fit2 = summary(fit)
     
     # plot (https://stackoverflow.com/questions/33305620/plotting-nls-fits-with-overlapping-prediction-intervals-in-a-single-figure)
@@ -417,7 +417,7 @@ est_abundance = function(dir_input, fileEncoding){
   
   # check_trend = trend %>% filter(year > 2015)
   check_trend = trend %>% filter(year > 2016)
-  summary(lm(total/1000 ~ year, data = check_trend))
+  fit3 = summary(lm(total/1000 ~ year, data = check_trend))
   
   ### year trend of stock number (fig. 11)
   est = est %>% mutate(age2 = ifelse(age > 4, "5歳以上", "2-4歳"))
@@ -622,6 +622,7 @@ est_abundance = function(dir_input, fileEncoding){
   write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "fishing_trend.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(abc_table, paste0(dir_output, "/abc_table.csv"), fileEncoding = fileEncoding, row.names=F)
   write.csv(fit2$coefficients, "ALK_fit.csv", fileEncoding = fileEncoding)
+  write.csv(fit3$coefficients, "trend_fit.csv", fileEncoding = fileEncoding)
   
   ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
   ggsave(file = "fig11.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
