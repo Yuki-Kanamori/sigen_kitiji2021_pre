@@ -176,20 +176,20 @@ okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ife
 head(okisoko)
 colnames(okisoko)
 
-catch_t1 = okisoko %>% group_by(pref, method, area) %>% summarize(sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
-catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
+catch_t1 = okisoko %>% dplyr::group_by(pref, method, area) %>% dplyr::summarize(sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum_kg)
+#catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
 catch_t1[is.na(catch_t1)] = 0
 
 catch_t2 = ddply(okisoko, .(area), summarize, sum_kg = sum(catch))
 catch_t2[is.na(catch_t2)] = 0
 
-catch_t3 = ddply(okisoko, .(method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = method, value = sum)
+catch_t3 = ddply(okisoko, .(method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = method, value = sum_kg)
 catch_t3[is.na(catch_t3)] = 0
 
 effort_t1 = ddply(okisoko, .(method, area), summarize, sum= sum(effort)) %>% tidyr::spread(key = method, value = sum)
 effort_t1[is.na(effort_t1)] = 0
 
-effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(effort)) %>% tidyr::spread(key = area, value = sum)
+effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
 effort_t2[is.na(effort_t2)] = 0
 
 write.csv(catch_t1, "catch_t1.csv", fileEncoding = "CP932")
@@ -206,14 +206,6 @@ ao_sum = ddply(ao, .(method), summarize, sum_temp = sum(catch_kg))
 ao_sum$method
 ao_sum$method2 = c("その他", "その他", "沖底", "小底")
 ao_sum = ao_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-
-
-### iwate
-iwa = read.xlsx("catch_pref.xlsx", sheet = "iwa") %>% select(漁業種名, 合計) %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
-iwa_sum = iwa
-iwa_sum$method
-iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
-iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
 
 
 ### iwate
@@ -324,7 +316,7 @@ th = theme(panel.grid.major = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.85, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
-fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 3))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
+fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
 ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
 
 
@@ -361,8 +353,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)),
@@ -423,7 +415,7 @@ th = theme(panel.grid.major = element_blank(),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
            axis.title.x = element_blank(),
            # axis.title.y = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(1.6)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 kake = g+l+p+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 60))
@@ -440,7 +432,7 @@ th = theme(panel.grid.major = element_blank(),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
            axis.title.x = element_blank(),
            # axis.title.y = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(1.6)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 niso = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand = c(0, 0.5))+scale_y_continuous(limits = c(0, 300))
@@ -457,7 +449,7 @@ th = theme(panel.grid.major = element_blank(),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
            axis.title.x = element_blank(),
            # axis.title.y = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(1.6)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 tra = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 120))
@@ -475,8 +467,8 @@ th = theme(panel.grid.major = element_blank(),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
            # axis.title.x = element_text(size = rel(2)),
            # axis.title.y = element_text(size = rel(2)),
-           axis.title.x = element_text(size = rel(1.6)),
-           axis.title.y = element_text(size = rel(1.6)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 w = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(min(w_cpue$year), max(w_cpue$year), by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 3))
@@ -874,8 +866,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
@@ -910,8 +902,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)),
@@ -933,8 +925,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
@@ -951,8 +943,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
@@ -1012,8 +1004,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)),
@@ -1071,10 +1063,11 @@ f_limit = 0.058
 f_target = f_limit*0.8
 z_abc = f_limit+M
 
-abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_next
-abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next
+# ABC
+(abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_next)
+(abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next)
 
-# re-estimation of ABC
+# re-estimation of ABC in this year
 total_biomass_this = sum(abund_abc$biomass_est)
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
@@ -1120,8 +1113,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.8)),
-           axis.title.y = element_text(size = rel(1.8)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)),
@@ -1140,8 +1133,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.8)),
-           axis.title.y = element_text(size = rel(1.8)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
@@ -1173,12 +1166,12 @@ l = geom_line(size = 1)
 lab = labs(x = "年級", y = "雌親魚量（トン）")
 th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
-           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
            axis.title.x = element_text(size = rel(1.5)),
            axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
-           strip.text.x = element_text(size = rel(1.5)),
+           strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 level_l = geom_hline(yintercept = low/1000000, linetype = "dashed", color = "gray50")
@@ -1202,8 +1195,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.8)),
-           axis.title.y = element_text(size = rel(1.8)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
@@ -1233,8 +1226,8 @@ surv_fig = survival %>% filter(age == 2)
 surv_fig = surv_fig %>% mutate(temp = as.numeric(str_sub(surv_fig$year, 3, 4))-1) %>% mutate(temp2 = temp+1) 
 surv_fig = surv_fig %>% mutate(temp3 = ifelse(surv_fig$temp == -1, "99", ifelse(surv_fig$temp < 10, formatC(surv_fig$temp, width = 2, flag = "0"), surv_fig$temp))) %>% mutate(temp4 = ifelse(temp2 < 10, formatC(surv_fig$temp2, width = 2, flag = "0"), ifelse(temp2 == 100, "00", temp2))) %>% mutate(xtitle = paste0(temp3, "→", temp4)) %>% select(surv, xtitle, year)
 
-surv_fig$
-  unique(surv_fig$xtitle)
+# surv_fig$
+#   unique(surv_fig$xtitle)
 
 
 g = ggplot(surv_fig, aes(x = year, y = surv))
@@ -1246,8 +1239,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.8)),
-           axis.title.y = element_text(size = rel(1.8)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.1, 0.8),
