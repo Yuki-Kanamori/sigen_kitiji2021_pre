@@ -405,8 +405,8 @@ est_abundance = function(dir_input, fileEncoding){
              panel.grid.minor = element_blank(),
              axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
              axis.text.y = element_text(size = rel(1.8), colour = "black"),
-             axis.title.x = element_text(size = rel(1.8)),
-             axis.title.y = element_text(size = rel(1.8)),
+             axis.title.x = element_text(size = rel(1.5)),
+             axis.title.y = element_text(size = rel(1.5)),
              legend.title = element_text(size = rel(1.8)),
              strip.text.x = element_text(size = rel(1.8)))
   level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
