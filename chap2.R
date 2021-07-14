@@ -173,6 +173,10 @@ summary(okisoko)
 okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
   mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
 
+head(okisoko)
+colnames(okisoko)
+
+catch_t1 = okisoko %>% group_by(pref, method, area) %>% summarize(sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
 catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
 catch_t1[is.na(catch_t1)] = 0
 

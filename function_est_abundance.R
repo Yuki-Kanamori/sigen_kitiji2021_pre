@@ -752,7 +752,7 @@ est_abundance = function(dir_input, fileEncoding){
   ggsave(file = "fig14.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
   ggsave(file = "fig15.png", plot = fig15, units = "in", width = 11.69, height = 8.27, scale = 0.9)
   ggsave(file = "fig_A33.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
-  ggsave(file = "fig_A41.png", plot = fig_a41, units = "in", width = 11.69, height = 8.27, scale = 0.9)
+  ggsave(file = "fig_A34.png", plot = fig_a41, units = "in", width = 11.69, height = 8.27, scale = 0.9)
   png("ALK.png")
   plotFit(fit, interval = "prediction", ylim = c(0, 250), pch = 19, col.pred = 'light blue', shade=T)
   dev.off()
