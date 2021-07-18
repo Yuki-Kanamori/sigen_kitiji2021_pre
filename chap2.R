@@ -400,7 +400,7 @@ cpue2$label = factor(cpue2$label, levels = c("尻屋崎〜岩手沖のかけ廻�
 table4 = data2  %>% group_by(method,漁区名) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計))
 table4$cpue = table4$catch/table4$effort
 table4
-write.csv(table4, "table4.csv")
+write.csv(table4, "table4.csv", fileEncoding = )
 
 
 ### かけ廻し
