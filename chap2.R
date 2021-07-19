@@ -1097,6 +1097,7 @@ ns_rec = left_join(ns_rec, survival_2month2, by = "year") %>% mutate(weight = 1.
 ns_rec2 = ns_rec %>% mutate(number_sel2 = number_sel*surv, year2 = year+1, maturity = 100/(1+exp(-1.967*((size_class+0.5)-15.309)))) %>% mutate(number_adult = number_sel2*maturity*0.01) %>% mutate(biomass_adult = number_adult*weight)
 
 biomass_female = ddply(ns_rec2, .(year2), summarize, biomass = sum(biomass_adult)/2)
+write.csv(biomass_female, "tableA4-8.csv", fileEncoding = "CP932")
 
 summary(est)
 rec_number = est %>% select(number, year, age) %>% mutate(year2 = year-3) %>% filter(age == 2)
