@@ -737,6 +737,7 @@ est_abundance = function(dir_input, fileEncoding){
   dir.create(paste0(dir_input, "/est_abundance"))
   dir_output = paste0(dir_input, "/est_abundance")
   setwd(dir_output)
+  write.csv(abund_oct_sel, "tableA4-5&6.csv", fileEncoding = "CP932")
   write.csv(number_at_age %>% dplyr::rename(age_length = age), "number_at_age.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(est, "estimated_abundance.csv", fileEncoding = fileEncoding, row.names=F)
   write.csv(weight, "weight_at_age.csv", fileEncoding = fileEncoding, row.names=F)

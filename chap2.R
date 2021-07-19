@@ -1160,6 +1160,8 @@ ko = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(br
 srr1 = srr %>% na.omit()
 low = (max(srr1$biomass)-min(srr1$biomass))*1/3+min(srr1$biomass)
 high = max(srr1$biomass)-(max(srr1$biomass)-min(srr1$biomass))*1/3
+min(srr1$biomass)
+max(srr1$biomass)
 g = ggplot(srr1, aes(x = year2, y = biomass/1000000))
 p = geom_point(size = 5)
 l = geom_line(size = 1)
