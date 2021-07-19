@@ -622,7 +622,8 @@ for(i in min(number_at_age_table$year):max(number_at_age_table$year)){
   temp = rbind(temp, naa)
 }
 trawl = rbind(old_trawl, temp)
-summary(trawl)
+summary(trawl) #tableA4-1
+write.csv(trawl, "tableA4-1.csv", fileEncoding = "CP932")
 
 
 # combine the length data
