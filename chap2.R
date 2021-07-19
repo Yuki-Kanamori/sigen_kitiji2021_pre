@@ -319,7 +319,7 @@ th = theme(panel.grid.major = element_blank(),
 fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
 ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
 
-
+catch2 = catch %>% dplyr::group_by(year) %>% dplyr::summarize(total_catch_t = sum(catch_t))
 
 # step 2; effort trend ----------------------------------------------------
 # ~2018まで
@@ -1068,7 +1068,7 @@ z_abc = f_limit+M
 (abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next)
 
 # re-estimation of ABC in this year
-total_biomass_this = sum(abund_abc$biomass_est)
+(total_biomass_this = sum(abund_abc$biomass_est))
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
