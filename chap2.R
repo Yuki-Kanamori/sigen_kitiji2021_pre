@@ -713,7 +713,7 @@ for(i in min(length$year):max(length$year)){
   q = rbind(q, temp_q2)
 }  
 summary(q)
-
+write.csv(q, "tableA4-4.csv", fileEncoding = "CP932")
 
 
 ### weight at age
@@ -730,7 +730,7 @@ for(i in min(length$year):max(length$year)){
   weight = rbind(weight, temp_w2)
 }
 summary(weight)
-
+write.csv(weight, "tableA4-3.csv", fileEncoding = "CP932")
 
 
 ### number at age when selectivity changes at age
@@ -758,7 +758,7 @@ for(i in min(trawl$year):max(trawl$year)){
   temp_abund_oct = data.frame(number_sel = temp_naa_sel[, 1], biomass_sel = temp_baa_sel[, 1], year = mean(data$year), age = 2:10)
   abund_oct_sel = rbind(abund_oct_sel, temp_abund_oct)
 }
-
+write.csv(abund_oct_sel, "tableA4-5&6.csv", fileEncoding = "CP932")
 
 
 ### fishing rate, F, Z, and survival rate within 2 month
