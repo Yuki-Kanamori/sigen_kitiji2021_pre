@@ -1073,6 +1073,9 @@ z_abc = f_limit+M
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
+# fisheries catch, F, and fishing rate in this year (the second table in the document)
+(rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
+(catch_this = trend %>% filter(year == 2000) %>% select(total)*rate_this)/100
 
 
 # step 6; spawner-recruitment relationship ----------------------
