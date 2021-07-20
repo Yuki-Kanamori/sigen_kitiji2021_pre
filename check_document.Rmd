@@ -1,0 +1,473 @@
+---
+title: "Results for document"
+author: "Yuki Kanamori"
+date: "2021/6/23"
+output: 
+  html_document:
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+require(xlsx)
+require(openxlsx)
+require(readxl)
+require(tidyr)
+require(dplyr)
+require(plyr)
+require(ggplot2)
+require(investr)
+require(stringr)
+require(abind)
+require(gridExtra)
+require(ggrepel)
+
+#setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
+dir = "/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/"
+knitr::opts_chunk$set(echo = TRUE)
+year = 2021
+```
+
+### 要約
+```{r calculation, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
+# -2018
+olddata = read.csv(paste0(dir, "/olddata_trawl.csv")) 
+
+# combine the catch data from the trawl surveys
+old_trawl = olddata %>% filter(data == 'trawl') %>% gather(key = year_tag, value = number, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data)
+summary(old_trawl)
+
+# 2019-
+sheets = excel_sheets(paste0(dir, "/ALdata.xlsx")) #シート名の取得
+number_at_age_table = NULL
+mean_length_weight_at_age_table = NULL
+for(i in 1:length(sheets)){
+  df = read.xlsx(paste0(dir, "/ALdata.xlsx"), sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
+  summary(df)
+  mode(df$age)
+  
+  # step 1; remove the data that age is 10+, 10++, and ? --------------------
+  df = df %>% mutate(length_mm = SL, age_num = as.numeric(as.character(age))) #10+, 10++, and ? turned NA
+  summary(df)
+  
+  # step 2; make the tables of number at age (NAA)
+  # !!note!!  use 10+ and 10++
+  head(df)
+  df3 = df %>% select(SL, age) %>% dplyr::rename(length_mm = SL)
+  summary(df3)
+  head(df3)
+  unique(df3$age)
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)))
+  
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)),
+                       age2 = ifelse(df3$age == "10+", 10, ifelse(df3$age > 9, 10, as.character(df3$age)))) %>% filter(fumei != 100) %>% select(-fumei) %>% mutate(count = 1)
+  unique(df3$age2)
+  df3$age2 = as.numeric(df3$age2)
+  summary(df3$age2)
+  df3$age3 = ifelse(df3$age2 > 10, 10, df3$age2)
+  df3 = na.omit(df3)
+  summary(df3)
+  naa = ddply(df3, .(length_mm, age3), summarize, number = sum(count))
+  
+  length_mm = rep(seq(min(df3$length_mm), max(df3$length_mm)), length(unique(df3$age3))+1) #1761rows
+  age_num = rep(0:max(df3$age3), each = length(unique(length_mm)))
+  tag = data_frame(length_mm = length_mm, age_num = age_num)
+  tag = tag %>% mutate(length_cate = ifelse(length_mm < 100, str_sub(tag$length_mm, 1, 1), str_sub(tag$length_mm, 1, 2)))
+  
+  head(naa)
+  head(tag)
+  
+  naa = naa %>% dplyr::rename(age = age3)
+  tag = tag %>% dplyr::rename(age = age_num)
+  
+  naa2 = merge(naa, tag, by = c("length_mm", "age"), all = T)
+  naa2$number = ifelse(is.na(naa2$number), 0, naa2$number)
+  summary(naa2)
+  NAA = ddply(naa2, .(age, length_cate), summarize, number = sum(number))
+  NAA$length_cate = as.numeric(NAA$length_cate)
+  summary(NAA)
+  
+  # add the data that NAA does not have
+  add = NAA %>% filter(length_cate < min(NAA$length_cate)*2-1)
+  add = add %>% mutate(length_cate = rep(1:(min(add$length_cate)-1)), number = 0)
+  NAA = rbind(add, NAA)
+  NAA = NAA %>% arrange(length_cate, age) 
+  sum = ddply(NAA, .(length_cate), summarize, sum = sum(number))
+  
+  NAA2 = NAA %>% tidyr::spread(key = length_cate, value = number)
+  sum2 = sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  number_at_age = rbind(NAA2, sum2)
+  #write.csv(number_at_age, "number_at_age.csv", fileEncoding = "CP932")
+  
+  # step 3; make the tables of age composition (AC)
+  AC = left_join(NAA, sum, by = "length_cate") %>% mutate(freq = ifelse(sum > 0, number/sum, 0))
+  AC = AC %>% select(length_cate, age, freq)
+  a_sum = ddply(AC, .(length_cate), summarize, sum = sum(freq))
+  
+  age_composition = AC %>% tidyr::spread(key = length_cate, value = freq)
+  a_sum2 = a_sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  age_composition = rbind(age_composition, a_sum2)
+  #write.csv(age_composition, "number_at_age_freq.csv", fileEncoding = "CP932")
+  # freq at age?
+  
+  
+  # step 4; calculate the number at age ---------------------------------------------
+  # get survey data and make dataframe
+  len_num = read.csv(paste0(dir, "survey_N_at_length.csv"), fileEncoding = "CP932") %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == sheets[i]) %>% select(-year)
+  len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+  len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
+  summary(len_num)
+  # len_num2 = ddply(NatL, .(age_j), summarize, number = sum(number))
+  len_num2 = len_num %>% dplyr::group_by(age_j) %>% dplyr::summarize(number = sum(number)) %>% mutate(length_cate = as.numeric(str_sub(age_j, 3, 4))) %>% select(-age_j)
+  
+  summary(len_num2)
+  AC2 = left_join(AC, len_num2, by = "length_cate") %>% mutate(bisu = freq*number)
+  num_ac2 = ddply(AC2, .(length_cate), summarize, total = mean(number))
+  
+  number_at_age2 = AC2 %>% select(length_cate, age, bisu) %>% tidyr::spread(key = length_cate, value = bisu)
+  num_ac2 = num_ac2 %>% tidyr::spread(key = length_cate, value = total) %>% mutate(age = "total")
+  
+  number_at_age2 = rbind(number_at_age2, num_ac2)
+  # x = number_at_age2[1:(nrow(number_at_age2)-1), 2:ncol(number_at_age2)]
+  # apply(x, 2, sum) - number_at_age2[nrow(number_at_age2), 2:ncol(number_at_age2)]
+  
+  number_at_age2[2,5] = number_at_age2[nrow(number_at_age2), 5]
+  # write.csv(number_at_age2, "number_at_age_exp.csv")
+  
+  
+  # step 5; calculate the weight at age, or at length -----------------------
+  number_at_age3 = number_at_age2[-nrow(number_at_age2), ] %>% gather(key = length, value = number, 2:ncol(number_at_age2))
+  number_at_age3 = number_at_age2 %>% gather(key = length, value = number, 2:ncol(number_at_age2)) %>% filter(age != "total")
+  summary(number_at_age3)
+  mode(number_at_age3$age)
+  length = number_at_age3 %>% mutate(sum_length = (as.numeric(as.character(as.factor(length))) + 0.5)*number)
+  
+  s_length_age = ddply(length, .(age), summarize, sum_l = sum(sum_length))
+  s_number_age = ddply(length, .(age), summarize, sum_n = sum(number))
+  
+  mean_length_weight_at_age = left_join(s_length_age, s_number_age, by = "age") %>% mutate(mean_cm = sum_l/sum_n) %>% select(age, mean_cm) %>% mutate(mean_mm = mean_cm*10) %>% mutate(weight = (1.86739*10^(-5))*(mean_mm^3.06825547)) 
+  # write.csv(mean_length_weight_at_age, "mean_length_weight_at_age.csv")
+  
+  #output
+  mean_length_weight_at_age$year = as.numeric(paste0(sheets[i]))
+  number_at_age2$year = as.numeric(paste0(sheets[i]))
+  # if(i = max(sheets)){
+  #   print(mean_length_weight_at_age)
+  #   print(number_at_age2)
+  # }
+  
+  mean_length_weight_at_age_table = rbind(mean_length_weight_at_age_table, mean_length_weight_at_age)
+  number_at_age_table = rbind(number_at_age_table, number_at_age2)
+}
+
+temp = NULL
+for(i in min(number_at_age_table$year):max(number_at_age_table$year)){
+  naa = number_at_age_table %>% filter(year == i)
+  # naa = number_at_age_table %>% filter(year == 2019)
+  # naa = number_at_age_table %>% filter(year == 2020)
+  naa = naa[1:(nrow(naa)-1), 3:ncol(naa)]
+  naa = apply(naa, 1, sum)
+  naa = naa %>% data.frame() %>% mutate(age = 0:10) %>% filter(age != 0)
+  colnames(naa) = c('number', 'age')
+  naa$year = as.numeric(paste0(i))
+  temp = rbind(temp, naa)
+}
+trawl = rbind(old_trawl, temp)
+summary(trawl)
+
+
+# combine the length data
+old_length = olddata %>% filter(data == 'length') %>% gather(key = year_tag, value = mean_mm, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data)
+summary(old_length)
+
+temp_length = NULL
+for(i in 1:length(sheets)){
+  length = mean_length_weight_at_age_table %>% filter(year == sheets[i]) %>% select(age, mean_mm) %>% mutate(age = as.numeric(age), year = as.numeric(paste0(sheets[i]))) %>% filter(age > 1)
+  length2 = rbind(length[2:nrow(length),], length[1, ]) #ageが数値なので10->2->3...となっているのを直す
+  temp_length = rbind(temp_length, length2)
+}
+length = rbind(old_length, temp_length)
+summary(length)
+
+# combine the catch data from the fishing
+new_catchF = NULL
+for(i in 1:length(sheets)){
+  okisoko = read.xlsx(paste0(dir, "/okisoko_after2019.xlsx"), sheet = sheets[i])
+  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+  new_catchF = rbind(new_catchF, temp)
+}
+
+old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+catchF = rbind(old_catchF, new_catchF)
+summary(catchF)
+
+
+
+### survival rate at age
+survival = NULL
+for(i in min(trawl$year):(max(trawl$year)-1)){
+  # i = min(trawl$year)
+  data_lastyr = trawl %>% filter(year == i)
+  data_thisyr = trawl %>% filter(year == (i+1))
+  data = left_join(data_lastyr, data_thisyr, by = 'age') %>% arrange(age)
+  surv = matrix(NA, ncol = 1, nrow = 9)
+  
+  if(i < 2006){
+    for(j in 2:5){
+      if(j < 5){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = data$number.y[(j)]/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  
+  if(i == 2006){
+    for(j in 2:5){
+      if(j < 5){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = (data$number.y[(j)]+data$number.y[(j+1)]+data$number.y[(j+2)]+data$number.y[(j+3)]+data$number.y[(j+4)]+data$number.y[(j+5)])/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  
+  if(i > 2006){
+    for(j in 2:10){
+      if(j < 10){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = data$number.y[(j)]/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  survival = rbind(survival, surv)
+}
+survival = data.frame(surv = survival, year = rep(1996:2020, each = 9), age = rep(2:10))
+
+
+### selectivity at age
+a = 1524.581
+b = 0.082366
+c = 0.738107
+
+q = NULL
+for(i in min(length$year):max(length$year)){
+  # i = max(length$year)-1
+  data = length %>% filter(year == i) %>% arrange(age)
+  temp_q = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    temp_q[j, 1] = c/{1+a*exp(-b*data$mean_mm[j])}
+  }
+  temp_q2 = data.frame(q = temp_q[,1], year = mean(data$year), age = 2:10)
+  q = rbind(q, temp_q2)
+}  
+summary(q)
+
+
+
+### weight at age
+weight = NULL
+for(i in min(length$year):max(length$year)){
+  # i = min(length$year)
+  data = length %>% filter(year == i) %>% arrange(age)
+  temp_w = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    temp_w[j, 1] = (1.86739*10^(-5))*data$mean_mm[j]^(3.06825547)
+  }
+  temp_w2 = data.frame(weight = temp_w[,1], year = mean(data$year), age = 2:10)
+  weight = rbind(weight, temp_w2)
+}
+summary(weight)
+
+
+
+### number at age when selectivity changes at age
+abund_oct_sel = NULL
+for(i in min(trawl$year):max(trawl$year)){
+  # i = min(trawl$year)
+  data_trawl = trawl %>% filter(year == i)
+  data_q = q %>% filter(year == i)
+  data_weight = weight %>% filter(year == i)
+  data = left_join(data_trawl, data_q, by = c("age", "year")) %>% filter(age > 1) %>% arrange(age)
+  data = left_join(data, data_weight,  by = c("age", "year")) %>% filter(age > 1) %>% arrange(age)
+  
+  temp_naa_sel = matrix(NA, ncol = 1, nrow = 9)
+  temp_baa_sel = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    #j = 9
+    temp_naa_sel[j, 1] = data$number[j]/data$q[j]
+  }
+  
+  for(k in 1:9){
+    temp_baa_sel[k, 1] = temp_naa_sel[k, 1]*data$weight[k]*(0.001)^2
+  }
+  
+  temp_abund_oct = data.frame(number_sel = temp_naa_sel[, 1], biomass_sel = temp_baa_sel[, 1], year = mean(data$year), age = 2:10)
+  abund_oct_sel = rbind(abund_oct_sel, temp_abund_oct)
+}
+
+
+
+### fishing rate, F, Z, and survival rate within 2 month
+M = 2.5/20 #fixed
+abund_jan_forF_notneeded = NULL
+fishing_rate = NULL
+Z = NULL
+survival_2month = NULL
+
+for(i in (min(abund_oct_sel$year)+1):max(abund_oct_sel$year)){
+  # i = min(abund_oct_sel$year)+1
+  data_oct_sel_last = abund_oct_sel %>% filter(year == (i-1)) %>% na.omit()
+  data_catchF_last = catchF %>% filter(year == (i-1))
+  data_catchF_this = catchF %>% filter(year == i)
+  
+  temp_abund_jan = sum(data_oct_sel_last$biomass_sel)*exp(-2/12*0.125)-data_catchF_last$catch/6*exp(-2/12*0.125)
+  temp_fishing_rate = data_catchF_this$catch/temp_abund_jan
+  temp_f = -log(1-(temp_fishing_rate/exp(-M/2)))
+  temp_Z = temp_f + M
+  temp_survival_2month = exp(-temp_Z/6)
+  
+  abund_jan_forF_notneeded_pre = data.frame(biomass = temp_abund_jan, year = i)
+  fishing_rate_pre = data.frame(f = temp_f, year = i)
+  Z_pre = data.frame(z = temp_Z, year = i)
+  survival_2month_pre = data.frame(surv = temp_survival_2month, year = i)
+  
+  abund_jan_forF_notneeded = rbind(abund_jan_forF_notneeded, abund_jan_forF_notneeded_pre)
+  fishing_rate = rbind(fishing_rate, fishing_rate_pre)
+  Z = rbind(Z, Z_pre)
+  survival_2month = rbind(survival_2month, survival_2month_pre)
+}
+
+
+
+### abundance in January
+est = NULL
+for(i in (min(abund_oct_sel$year)+1):(max(abund_oct_sel$year)+1)){
+  # i = max(abund_oct_sel$year) #1995
+  
+  if(i < max(abund_oct_sel$year)+1){
+    data_survival = survival_2month %>% filter(year == i)
+    data_abund_oct_sel = abund_oct_sel %>% filter(year == (i-1)) %>% arrange(age)
+    data_weight = weight %>% filter(year == (i-1)) %>% arrange(age)
+    
+    temp_number = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    temp_biomass = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    
+    for(j in 1:nrow(data_abund_oct_sel)){
+      temp_number[j, 1] = data_survival$surv*data_abund_oct_sel$number_sel[j]
+    }
+    
+    for(k in 1:nrow(data_abund_oct_sel)){
+      temp_biomass[k, 1] = temp_number[k, 1]*data_weight$weight[k]*(0.001)^2
+    }
+    
+    temp_est = data.frame(number = temp_number[, 1], biomass = temp_biomass[, 1], year = i, age = 2:10)
+    est = rbind(est, temp_est)
+  }
+  
+  if(i == max(abund_oct_sel$year)+1){
+    data_survival = survival_2month %>% filter(year == (i-1))
+    data_abund_oct_sel = abund_oct_sel %>% filter(year == (i-1)) %>% arrange(age)
+    data_weight = weight %>% filter(year == (i-1)) %>% arrange(age)
+    
+    temp_number = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    temp_biomass = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    
+    for(j in 1:nrow(data_abund_oct_sel)){
+      temp_number[j, 1] = data_survival$surv*data_abund_oct_sel$number_sel[j]
+    }
+    
+    for(k in 1:nrow(data_abund_oct_sel)){
+      temp_biomass[k, 1] = temp_number[k, 1]*data_weight$weight[k]*(0.001)^2
+    }
+    
+    temp_est = data.frame(number = temp_number[, 1], biomass = temp_biomass[, 1], year = i, age = 2:10)
+    est = rbind(est, temp_est)
+  }
+}
+
+
+
+### catch rate
+trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass))
+catch_rate = left_join(catchF, trend, by = "year") %>% mutate(rate = catch/total*100)
+fishing_trend = left_join(catch_rate, fishing_rate, by = "year") %>% select(year, rate, f) %>% gather(key = data, value = value, 2:3) %>% mutate(data2 = ifelse(data == "f", "F値", "漁獲割合"))
+
+mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% select(value)
+(mean_fishing_trend = mean(mean$value))
+```
+
+```{r ABC, echo=F, results=F, warning=F}
+f_current = fishing_rate %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% summarize(mean(f))
+
+# s_pre = Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1))
+# s_current = exp(-s_pre$z)
+s_current = exp(-(Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(z)))
+
+# s1_pre = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2)
+# s1_current = mean(s1_pre$surv)
+s1_current = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2) %>% summarize(mean(surv))
+
+number_2old_oct_last = trawl %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 1) %>% select(number)/1000 * s1_current
+number_2old_jan_this = number_2old_oct_last*survival_2month %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% select(surv)
+
+number_2old_jan_this_sel = number_2old_jan_this/q %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 2) %>% select(q)
+
+# the estimated abundance in step 4
+abund_abc = est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass)
+abund_abc = left_join(abund_abc, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("year", "age"))
+
+next_year = NULL
+for(i in 1:(length(abund_abc$age)-1)){
+  #i=1
+  if(i == 1){
+    temp = number_2old_jan_this_sel
+    next_year = rbind(next_year, temp)
+  }
+  if(i < (length(abund_abc$age)-1)){
+    temp = abund_abc$number_est[i]*s_current$z
+    next_year = rbind(next_year, temp)
+  }
+  if(i == (length(abund_abc$age)-1)){
+    temp = (abund_abc$number_est[i]+abund_abc$number_est[i+1])*s_current$z
+    next_year = rbind(next_year, temp)
+  }
+}
+
+abund_abc = abund_abc %>% mutate(next_year_number = next_year$number/1000) %>% mutate(next_year_biomass = next_year_number*weight/1000)
+
+(total_number_next = sum(abund_abc$next_year_number))
+(total_biomass_next = sum(abund_abc$next_year_biomass))
+
+f_limit = 0.058
+f_target = f_limit*0.8
+z_abc = f_limit+M
+
+# ABC
+(abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_next)
+(abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next)
+
+# re-estimation of ABC in this year
+(total_biomass_this = sum(abund_abc$biomass_est))
+(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+### fisheries catch, F, and fishing rate in this year (the second table in the document)
+(rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
+(catch_this = trend %>% filter(year == 2021) %>% select(total)*rate_this)/100
+
+### fishing rate and F in ABC (the first table in the document)
+(rate_limit = abc_limit/total_biomass_next*100)
+(rate_target = abc_target/total_biomass_next*100)
+(changeFpercent_limit = (0.058-f_current)*100/f_current)
+(changeFpercent_target = (0.047-f_current)*100/f_current)
+
+table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_tons = c(abc_target, abc_limit), catch_rate = c(rate_target, rate_limit), changes_F = c(changeFpercent_limit, changeFpercent_target))
+```
+
+```{r table_numbers, echo=F}
+table_s1
+```
