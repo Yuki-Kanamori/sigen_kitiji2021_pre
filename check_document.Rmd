@@ -754,3 +754,13 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3
 f_current
 ```
 
+
+## 2022年ABC算定
+### (2) ABCの算定
+```{r survival rate}
+
+```
+
+1歳魚が翌年の2歳魚になる比率の直近3年間の平均値
+
+2022年の資源量
