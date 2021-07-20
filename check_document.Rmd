@@ -27,7 +27,7 @@ knitr::opts_chunk$set(echo = TRUE)
 year = 2021
 ```
 
-### 要約
+# 要約
 ```{r calculation, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
 # -2018
 olddata = read.csv(paste0(dir, "/olddata_trawl.csv")) 
@@ -398,6 +398,19 @@ fishing_trend = left_join(catch_rate, fishing_rate, by = "year") %>% select(year
 
 mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% select(value)
 (mean_fishing_trend = mean(mean$value))
+
+est = est %>% mutate(age2 = ifelse(age > 4, "5歳以上", "2-4歳"))
+summary(est)
+
+est2 = est
+est2[is.na(est2)] = 0
+est2 = ddply(est2, .(year, age2), summarize, total = sum(number))
+summary(est2)
+
+levels(est2$age2) 
+unique(est$age2)
+est2$age2 = factor(est2$age2, levels = c("5歳以上", "2-4歳"))
+levels(est2$age2)
 ```
 
 ```{r get srr, echo=F, results=F, warning=F}
@@ -620,7 +633,8 @@ z_abc = f_limit+M
 
 table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_tons = c(abc_target, abc_limit), 漁獲割合 = c(rate_target, rate_limit), 現状のF値からの増減 = c(changeFpercent_target$`mean(f)`, changeFpercent_limit$`mean(f)`))
 
-table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000), catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
+total_catch_pref = merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000)
+table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", total_catch_pref, catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
 
 colnames(table_s2) = c("年", "資源量_tons", "親魚量_tons", "漁獲量_tons", "F", "漁獲割合")
 
@@ -632,4 +646,78 @@ table_s1
 
 ```{r table_s2, echo=F}
 table_s2
+```
+  
+  
+  
+## 3.漁業の状況
+### (2)漁獲量の推移
+2020年の全漁業種類を合わせた漁獲量（暫定値）は
+```{r trend of pref. fisheries catch, echo=F}
+total_catch_pref[1,1]
+```
+
+2020年の沖底の漁獲量（暫定値）は
+```{r trend of okisoko, echo=F}
+catchF %>% filter(year < 2011) %>% spread(key = year, value = catch)
+catchF %>% filter(year > 2010) %>% spread(key = year, value = catch)
+```
+
+### (3）漁獲努力量の推移
+2020年の有漁網数（暫定値）は
+```{r get trend of effort, echo=F, results=F, warning=F, message=F}
+okisoko = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2020")
+summary(okisoko$魚種名)
+colnames(okisoko)
+summary(okisoko)
+
+okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+  mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
+
+head(okisoko)
+colnames(okisoko)
+
+catch_t1 = okisoko %>% dplyr::group_by(pref, method, area) %>% dplyr::summarize(sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum_kg)
+#catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
+catch_t1[is.na(catch_t1)] = 0
+
+catch_t2 = ddply(okisoko, .(area), summarize, sum_kg = sum(catch))
+catch_t2[is.na(catch_t2)] = 0
+
+catch_t3 = ddply(okisoko, .(method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = method, value = sum_kg)
+catch_t3[is.na(catch_t3)] = 0
+
+effort_t1 = ddply(okisoko, .(method, area), summarize, sum= sum(effort)) %>% tidyr::spread(key = method, value = sum)
+effort_t1[is.na(effort_t1)] = 0
+
+effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
+effort_t2[is.na(effort_t2)] = 0
+```
+
+```{r trend of effort, echo=F}
+effort_t2
+```
+
+
+## 4.資源の状態
+### (4) 資源量と漁獲割合の推移
+推定資源量は
+```{r table_biomass, echo=F}
+trend %>% filter(year < 2011) %>% spread(key = year, value = total)
+trend %>% filter(year > 2010) %>% spread(key = year, value = total)
+```
+
+資源尾数は
+```{r table_N, echo=F}
+est2 %>% group_by(year) %>% summarize(N_thou = sum(total)/1000)
+#trend %>% filter(year < 2011) %>% spread(key = year, value = total)
+#trend %>% filter(year > 2010) %>% spread(key = year, value = total)
+```
+
+F値と漁獲割合は
+```{r table_fishing trend, echo=F}
+fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
+fishing_trend %>% filter(year > 2010, data == "f") %>% spread(key = year, value = value)
+fishing_trend %>% filter(year < 2011, data == "rate") %>% spread(key = year, value = value)
+fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
 ```
