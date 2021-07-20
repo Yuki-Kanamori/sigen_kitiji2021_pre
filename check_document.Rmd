@@ -400,6 +400,159 @@ mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(s
 (mean_fishing_trend = mean(mean$value))
 ```
 
+```{r get srr, echo=F, results=F, warning=F}
+# 南北別漁獲量（調査）
+ns = read.csv(paste0(dir, "trawl_N_at_length_ns.csv"), fileEncoding = "CP932")
+summary(ns)
+ns[is.na(ns)] = 0
+ns = ns %>% dplyr::rename(year = 年, area = 南北) %>% gather(key = size_class, value = number, -c("year", "area"))
+ns = ns %>% mutate(size_class = as.numeric(str_sub(ns$size_class, 2,3)))
+summary(ns)
+
+net_eff = data.frame(size = seq(15, 315, 10)) 
+net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size)), size_class = rep(1:nrow(net_eff)))
+summary(net_eff)
+
+ns = left_join(ns, net_eff, by = "size_class")
+summary(ns)
+ns = ns %>% mutate(number_sel = ns$number/ns$q)
+
+# ns2 = ddply(ns, .(year, area), summarize, total = sum(number_sel))
+# ns2 = ns2 %>% spread(key = area, value = total)
+# summary(ns2)
+# ns2$n_rate = ns2$北部/(ns2$北部+ns2$南部)
+
+ns = ns %>% mutate(weight = 1.867*10^(-5)*ns$size^(3.068))
+ns = ns %>% mutate(biomass_sel = ns$number_sel*ns$weight)
+
+ns3 = ddply(ns, .(year, area), summarize, total_number = sum(number_sel), total_biomass = sum(biomass_sel))
+ns4 = left_join(ns3 %>% select(-total_biomass) %>% spread(key = area, value = total_number), ns3 %>% select(-total_number) %>% spread(key = area, value = total_biomass), by = "year") 
+ns4 = ns4 %>% mutate(n_rate_number = ns4$北部.x/(ns4$南部.x+ns4$北部.x), n_rate_biomass = ns4$北部.y/(ns4$南部.y+ns4$北部.y))
+
+ns4_2 = ns4 %>% mutate(year = year + 1)
+
+head(trend)  
+trend_ns = left_join(trend, ns4_2 %>% select(year, n_rate_biomass), by = "year")
+trend_ns = trend_ns %>% mutate(total_n = (trend_ns$total)/1000*trend_ns$n_rate_biomass, total_s = (trend_ns$total)/1000*(1-trend_ns$n_rate_biomass)) %>% select(year, total_n, total_s) %>% gather(key = data, value = biomass_sel, -year) %>% mutate(area = rep(c("北部", "南部"), each = length(unique(trend_ns$year)))) %>% na.omit()
+
+
+ns_rec = ddply(ns, .(year, size_class, size), summarize, number = sum(number))
+# 
+# net_eff = data.frame(size = seq(15, 315, 10)) %>% mutate(size_class = rep(1:nrow(net_eff)))
+# net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size_class)))
+# 
+net_eff = data.frame(size = seq(15, 315, 10)) 
+net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size)), size_class = rep(1:nrow(net_eff)))
+ns_rec = left_join(ns_rec, net_eff, by = c("size", "size_class"))
+ns_rec = ns_rec %>% mutate(number_sel = number/q)
+
+survival_2month2 = survival_2month %>% mutate(year = year-1)
+survival_2month2_latest = abind(survival_2month2 %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-2) %>% select(surv), as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% data.frame
+survival_2month2 = abind(survival_2month2, survival_2month2_latest, along = 1) %>% data.frame() %>% dplyr::rename(year = V2)
+
+ns_rec = left_join(ns_rec, survival_2month2, by = "year") %>% mutate(weight = 1.867*10^(-5)*((ns_rec$size_class+0.5)*10)^(3.068))
+
+ns_rec2 = ns_rec %>% mutate(number_sel2 = number_sel*surv, year2 = year+1, maturity = 100/(1+exp(-1.967*((size_class+0.5)-15.309)))) %>% mutate(number_adult = number_sel2*maturity*0.01) %>% mutate(biomass_adult = number_adult*weight)
+
+biomass_female = ddply(ns_rec2, .(year2), summarize, biomass = sum(biomass_adult)/2)
+
+summary(est)
+rec_number = est %>% select(number, year, age) %>% mutate(year2 = year-3) %>% filter(age == 2)
+srr = left_join(biomass_female, rec_number, by = "year2")
+srr = srr %>% mutate(rps = number/(biomass*0.001))
+
+
+
+### figures 
+g = ggplot(srr %>% na.omit(),  aes(x = year2, y = rps))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black", fill = "black")
+lab = labs(x = "年級", y = "RPS（尾/kg）", legend = NULL)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.5)),
+           strip.text.x = element_text(size = rel(1.5)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig13 = g+b+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 60))
+```
+
+
+```{r pref catch, echo=F, message=FALSE, results='hide', warning=F}
+### aomori
+ao = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "ao") %>% select(漁法, 数量kg) %>% dplyr::rename( method = 漁法, catch_kg = 数量kg)
+summary(ao)
+ao_sum = ddply(ao, .(method), summarize, sum_temp = sum(catch_kg))
+ao_sum$method
+ao_sum$method2 = c("その他", "その他", "沖底", "小底")
+ao_sum = ao_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### iwate
+iwa = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iwa") %>% select(漁業種名, "合計") %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
+iwa_sum = iwa
+iwa_sum$method
+# iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
+iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
+iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### miyagi
+miya = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "miya", startRow = 4)
+miya = miya[, c(1,2,ncol(miya))]
+miya_l = miya %>% filter(魚種コード == "きちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+miya_s = miya %>% filter(魚種コード == "こきちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+
+miya2 = left_join(miya_l, miya_s, by = "method")
+miya2[is.na(miya2)] = 0
+miya2 = miya2 %>% mutate(sum_temp = sum.x+sum.y) %>% select(method, sum_temp)
+# miya_sum = miya2 %>% filter(method != "その他漁業種") %>% filter(method != "その他漁業種・全漁法2") %>% filter(method != "沿岸小漁")
+# miya_sum$method
+# miya_sum$method2 = c("沖底", "刺網", "延縄") #沿岸小漁=その他
+# miya_sum = miya_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+miya2$method
+miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
+miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### fukusima
+fuku = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "fuku", startRow = 2) %>% 
+  select(沖合底びき網) %>% 
+  mutate(method = paste0("沖合底びき網")) %>% 
+  dplyr::rename(catch_kg = 沖合底びき網) %>% 
+  na.omit %>% 
+  dplyr::group_by(method) %>% 
+  dplyr::summarize(sum = sum(catch_kg))
+fuku_sum = fuku
+fuku_sum$method
+fuku_sum$method2 = c("沖底")
+fuku_sum = fuku_sum %>% select(-method)
+
+
+### ibaraki
+iba = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iba", startRow = 4)
+iba = iba[13, ] 
+iba = iba %>% mutate(method2 = "沖底")
+iba = iba[, 3:4]
+colnames(iba)[1] = "sum"
+# iba = iba %>% dplyr::rename(method = 漁法) %>% mutate(num = as.numeric(as.character(as.factor(iba$年計))))
+# iba = iba %>% filter(method != "小計") %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(num))
+# iba_sum = iba
+# iba_sum$method
+# iba_sum$method2 = c("その他", "延縄", "沖底", "小底", "小底")
+# iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+iba_sum = iba
+
+
+merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
+colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
+merge[is.na(merge)] = 0
+```
+
 ```{r ABC, echo=F, results=F, warning=F}
 f_current = fishing_rate %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% summarize(mean(f))
 
@@ -467,7 +620,8 @@ z_abc = f_limit+M
 
 table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_tons = c(abc_target, abc_limit), 漁獲割合 = c(rate_target, rate_limit), 現状のF値からの増減 = c(changeFpercent_target$`mean(f)`, changeFpercent_limit$`mean(f)`))
 
-table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(t1, total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000), catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
+table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000), catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
+
 colnames(table_s2) = c("年", "資源量_tons", "親魚量_tons", "漁獲量_tons", "F", "漁獲割合")
 
 ```
