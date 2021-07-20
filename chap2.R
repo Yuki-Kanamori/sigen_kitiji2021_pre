@@ -1073,9 +1073,15 @@ z_abc = f_limit+M
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
-# fisheries catch, F, and fishing rate in this year (the second table in the document)
+### fisheries catch, F, and fishing rate in this year (the second table in the document)
 (rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
-(catch_this = trend %>% filter(year == 2000) %>% select(total)*rate_this)/100
+(catch_this = trend %>% filter(year == 2021) %>% select(total)*rate_this)/100
+
+### fishing rate and F in ABC (the first table in the document)
+(rate_limit = abc_limit/total_biomass_next*100)
+(rate_target = abc_target/total_biomass_next*100)
+(changeFpercent_limit = (0.058-f_current)*100/f_current)
+(changeFpercent_limit = (0.047-f_current)*100/f_current)
 
 
 # step 6; spawner-recruitment relationship ----------------------
