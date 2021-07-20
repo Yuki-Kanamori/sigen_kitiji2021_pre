@@ -1081,7 +1081,7 @@ z_abc = f_limit+M
 (rate_limit = abc_limit/total_biomass_next*100)
 (rate_target = abc_target/total_biomass_next*100)
 (changeFpercent_limit = (0.058-f_current)*100/f_current)
-(changeFpercent_limit = (0.047-f_current)*100/f_current)
+(changeFpercent_target = (0.047-f_current)*100/f_current)
 
 
 # step 6; spawner-recruitment relationship ----------------------
