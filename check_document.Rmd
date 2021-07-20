@@ -652,12 +652,12 @@ table_s2
   
 ## 3.漁業の状況
 ### (2)漁獲量の推移
-2020年の全漁業種類を合わせた漁獲量（暫定値）は
+#### 2020年の全漁業種類を合わせた漁獲量（暫定値）
 ```{r trend of pref. fisheries catch, echo=F}
 total_catch_pref[1,1]
 ```
 
-2020年の沖底の漁獲量（暫定値）は
+#### 2020年の沖底の漁獲量（暫定値）
 ```{r trend of okisoko, echo=F}
 catchF
 # catchF %>% filter(year < 2011) %>% spread(key = year, value = catch)
@@ -665,7 +665,7 @@ catchF
 ```
 
 ### (3）漁獲努力量の推移
-2020年の有漁網数（暫定値）は
+#### 2020年の有漁網数（暫定値）
 ```{r get trend of effort, echo=F, results=F, warning=F, message=F}
 okisoko = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2020")
 summary(okisoko$魚種名)
@@ -702,19 +702,19 @@ effort_t2
 
 ## 4.資源の状態
 ### (4) 資源量と漁獲割合の推移
-推定資源量は
+#### 推定資源量
 ```{r table_biomass, echo=F}
 trend %>% dplyr::rename(tons = total)
 # trend %>% filter(year < 2011) %>% spread(key = year, value = total)
 # trend %>% filter(year > 2010) %>% spread(key = year, value = total)
 ```
 
-資源尾数は
+#### 資源尾数
 ```{r table_N, echo=F, message=F}
 est2 %>% dplyr::group_by(year) %>% dplyr::summarize(N_thou = sum(total)/1000)
 ```
 
-F値は
+#### F値
 ```{r table_fishing trend1, echo=F}
 fishing_trend %>% filter(data == "f") %>% select(-data, -data2) %>% dplyr::rename("F" = value)
 # fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
@@ -723,7 +723,7 @@ fishing_trend %>% filter(data == "f") %>% select(-data, -data2) %>% dplyr::renam
 # fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
 ```
 
-漁獲割合は
+#### 漁獲割合
 ```{r table_fishing trend2, echo=F}
 fishing_trend %>% filter(data == "rate") %>% select(-data, -data2) %>% dplyr::rename("%" = value)
 # fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
@@ -761,16 +761,30 @@ f_current
 s_current
 ```
 
-1歳魚が翌年の2歳魚になる比率の直近3年間の平均値
+#### 1歳魚が翌年の2歳魚になる比率の直近3年間の平均値
 ```{r survival rate at age 1}
 s1_current
 ```
 
-2022年の資源量
+#### 2022年の資源量
 ```{r stock 2022}
 #資源量
 (total_biomass_next = sum(abund_abc$next_year_biomass))
 
 #尾数
 (total_number_next = sum(abund_abc$next_year_number))
+```
+
+### (4) ABCの再評価
+```{r reABC 2021}
+# 資源量
+(total_biomass_this = sum(abund_abc$biomass_est))
+
+# F limit
+(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+# F target
+(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+# 漁獲量とFは要約にある
 ```
