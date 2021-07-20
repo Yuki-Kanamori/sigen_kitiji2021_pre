@@ -758,9 +758,19 @@ f_current
 ## 2022年ABC算定
 ### (2) ABCの算定
 ```{r survival rate}
-
+s_current
 ```
 
 1歳魚が翌年の2歳魚になる比率の直近3年間の平均値
+```{r survival rate at age 1}
+s1_current
+```
 
 2022年の資源量
+```{r stock 2022}
+#資源量
+(total_biomass_next = sum(abund_abc$next_year_biomass))
+
+#尾数
+(total_number_next = sum(abund_abc$next_year_number))
+```
