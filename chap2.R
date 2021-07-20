@@ -1085,9 +1085,7 @@ z_abc = f_limit+M
 
 table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_tons = c(abc_target, abc_limit), 漁獲割合 = c(rate_target, rate_limit), 現状からのFの増減 = c(changeFpercent_target$`mean(f)`, changeFpercent_limit$`mean(f)`))
 
-t1 = trend %>% dplyr::filter(year > 2016) %>% data.frame() %>% select(total)
-
-table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(t1, total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000), catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
+table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000), catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
 
 colnames(table_s2) = c("年", "資源量_tons", "親魚量_tons", "漁獲量_tons", "F", "漁獲割合")
 
