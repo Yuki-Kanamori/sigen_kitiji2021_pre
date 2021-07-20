@@ -623,7 +623,7 @@ z_abc = f_limit+M
 
 ### fisheries catch, F, and fishing rate in this year (the second table in the document)
 (rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
-(catch_this = trend %>% filter(year == 2021) %>% select(total)*rate_this)/100
+(catch_this = trend %>% filter(year == 2021) %>% select(total)*(rate_this/100))
 
 ### fishing rate and F in ABC (the first table in the document)
 (rate_limit = abc_limit/total_biomass_next*100)
