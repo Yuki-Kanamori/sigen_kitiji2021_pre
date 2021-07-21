@@ -481,6 +481,8 @@ mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(s
 est = est %>% mutate(age2 = ifelse(age > 4, "5歳以上", "2-4歳"))
 summary(est)
 
+N_trend = est %>% dplyr::group_by(year, age2) %>% dplyr::summarize(number = sum(number)/1000)
+
 est2 = est
 est2[is.na(est2)] = 0
 est2 = ddply(est2, .(year, age2), summarize, total = sum(number))
@@ -674,7 +676,7 @@ okisoko_all
 # catchF %>% filter(year > 2010) %>% spread(key = year, value = catch)
 ```
 
-### (3）漁獲努力量の推移
+### (3) 漁獲努力量の推移
 #### 2020年の有漁網数（暫定値）
 ```{r get trend of effort, echo=F, results=F, warning=F, message=F}
 okisoko = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2020")
@@ -703,6 +705,9 @@ effort_t1[is.na(effort_t1)] = 0
 
 effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
 effort_t2[is.na(effort_t2)] = 0
+
+# effort_t2$pref = factor(effort_t2$pref, levels = c("青森", "岩手", "宮城", "福島", "茨城"))
+
 ```
 
 ```{r trend of effort, echo=F}
@@ -721,7 +726,7 @@ trend %>% dplyr::rename(tons = total)
 
 #### 資源尾数
 ```{r table_N, echo=F, message=F}
-est2 %>% dplyr::group_by(year) %>% dplyr::summarize(N_thou = sum(total)/1000)
+N_trend
 ```
 
 #### F値
@@ -742,6 +747,10 @@ fishing_trend %>% filter(data == "rate") %>% select(-data, -data2) %>% dplyr::re
 # fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
 ```
 
+### (5) 再生産関係
+```{r rps, echo=F}
+srr %>% select(year2, rps) %>% dplyr::rename(year = year2)
+```
 
 ### (7) 資源の水準・動向
 ```{r level and trend of biomass}
@@ -767,6 +776,7 @@ f_current
 -----
 ## 2022年ABC算定
 ### (2) ABCの算定
+#### 2021年の年間生残率
 ```{r survival rate}
 s_current
 ```
@@ -785,6 +795,17 @@ s1_current
 (total_number_next = sum(abund_abc$next_year_number))
 ```
 
+#### 2021年の資源量と資源尾数
+```{r stock 2021, message=F}
+#資源量
+(trend %>% dplyr::rename(tons = total))
+
+#尾数
+(est2 %>% dplyr::group_by(year) %>% dplyr::summarize(N_thou = sum(total)/1000))
+```
+
+
+
 ### (4) ABCの再評価（表中）
 <!----
 `r (year - 1)`年の資源量は`r (total_biomass_this = sum(abund_abc$biomass_est))`，F limitは`r (total_biomass_this = sum(abund_abc$biomass_est))`，F targetは`r (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)`．  
@@ -795,10 +816,10 @@ s1_current
 # 資源量
 (total_biomass_this = sum(abund_abc$biomass_est))
 
-# F limit
+# limit
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
-# F target
+# target
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
 # 漁獲量とFは要約にある
