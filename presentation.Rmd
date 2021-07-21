@@ -1,0 +1,44 @@
+---
+title: "キチジ本州太平洋北部資源評価"
+author: "Yuki Kanamori"
+date: "2021/7/21"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+require(xlsx)
+require(openxlsx)
+require(readxl)
+require(tidyr)
+require(dplyr)
+require(plyr)
+require(ggplot2)
+require(investr)
+require(stringr)
+require(abind)
+require(gridExtra)
+require(ggrepel)
+
+#setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
+dir = "/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/"
+knitr::opts_chunk$set(echo = TRUE)
+year = 2021
+```
+
+## 昨年度からの変更点
+> - 資源状態を親魚量でも確認（図14）
+
+## 生態
+
+## 漁業の状況
+
+## 資源の状態 | 資源評価の方法
+> - データ: 若鷹丸による着底トロール調査
+
+## 推定資源量
+
+## 資源量と漁獲割合の推移
+
+## 再生産関係
+
+## ABC

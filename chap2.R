@@ -269,7 +269,7 @@ colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城
 merge[is.na(merge)] = 0
 write.csv(merge, "table1.csv", fileEncoding = "CP932")
 
-
+total_catch_pref = merge %>% gather(key = pref, value = catch, 2:ncol(merge)) %>% dplyr::summarize(total = sum(catch)/1000)
 
 # -------------------------------------------------------------------------
 # 2-4  資源量計算とABCの算定
@@ -640,15 +640,21 @@ length = rbind(old_length, temp_length)
 summary(length)
 
 # combine the catch data from the fishing
-new_catchF = NULL
-for(i in 1:length(sheets)){
-  okisoko = read.xlsx("okisoko_after2019.xlsx", sheet = sheets[i])
-  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
-  new_catchF = rbind(new_catchF, temp)
-}
+total_catch_pref_old = read.csv("pref_catch_old.csv", fileEncoding = "CP932")
+total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
+total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
+colnames(total_catch_pref) = c("year", "catch")
+catchF = rbind(total_catch_pref_old, total_catch_pref)
 
-old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
-catchF = rbind(old_catchF, new_catchF)
+# new_catchF = NULL
+# for(i in 1:length(sheets)){
+#   okisoko = read.xlsx("okisoko_after2019.xlsx", sheet = sheets[i])
+#   temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+#   new_catchF = rbind(new_catchF, temp)
+# }
+# 
+# old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+# catchF = rbind(old_catchF, new_catchF)
 summary(catchF)
 
 
