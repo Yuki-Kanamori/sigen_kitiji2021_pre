@@ -736,10 +736,10 @@ fishing_trend %>% filter(data == "rate") %>% select(-data, -data2) %>% dplyr::re
 ### (7) 資源の水準・動向
 ```{r level and trend of biomass}
 # 最小値
-min(trend$total)
+trend %>% filter(total == min(trend$total))
 
 # 最大値
-max(trend$total)
+trend %>% filter(total == max(trend$total))
 
 # 低中位
 (max(trend$total)-min(trend$total))*1/3+min(trend$total)
@@ -754,7 +754,7 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3
 f_current
 ```
 
-
+-----
 ## 2022年ABC算定
 ### (2) ABCの算定
 ```{r survival rate}
@@ -775,7 +775,12 @@ s1_current
 (total_number_next = sum(abund_abc$next_year_number))
 ```
 
-### (4) ABCの再評価
+### (4) ABCの再評価（表中）
+<!----
+`r (year - 1)`年の資源量は`r (total_biomass_this = sum(abund_abc$biomass_est))`，F limitは`r (total_biomass_this = sum(abund_abc$biomass_est))`，F targetは`r (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)`．  
+漁獲量とFは要約にある．  
+--->
+
 ```{r reABC 2021}
 # 資源量
 (total_biomass_this = sum(abund_abc$biomass_est))

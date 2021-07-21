@@ -1721,11 +1721,19 @@ summary {
 <div id="資源の水準動向" class="section level3">
 <h3>(7) 資源の水準・動向</h3>
 <pre class="r"><code># 最小値
-min(trend$total)</code></pre>
-<pre><code>## [1] 1610.912</code></pre>
+trend %&gt;% filter(total == min(trend$total))</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["total"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"1996","2":"1610.912"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
 <pre class="r"><code># 最大値
-max(trend$total)</code></pre>
-<pre><code>## [1] 12545.62</code></pre>
+trend %&gt;% filter(total == max(trend$total))</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["total"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"2021","2":"12545.62"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
 <pre class="r"><code># 低中位
 (max(trend$total)-min(trend$total))*1/3+min(trend$total)</code></pre>
 <pre><code>## [1] 5255.815</code></pre>
@@ -1741,6 +1749,7 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 {"columns":[{"label":["mean(f)"],"name":[1],"type":["dbl"],"align":["right"]}],"data":[{"1":"0.0434052"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
+<hr />
 </div>
 </div>
 <div id="年abc算定" class="section level2">
@@ -1772,8 +1781,12 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 <pre><code>## [1] 72357.65</code></pre>
 </div>
 </div>
-<div id="abcの再評価" class="section level3">
-<h3>(4) ABCの再評価</h3>
+<div id="abcの再評価表中" class="section level3">
+<h3>(4) ABCの再評価（表中）</h3>
+<!----
+2020年の資源量は1.2519903\times 10^{4}，F limitは1.2519903\times 10^{4}，F targetは530.8683574．  
+漁獲量とFは要約にある．  
+--->
 <pre class="r"><code># 資源量
 (total_biomass_this = sum(abund_abc$biomass_est))</code></pre>
 <pre><code>## [1] 12519.9</code></pre>
