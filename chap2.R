@@ -400,7 +400,7 @@ cpue2$label = factor(cpue2$label, levels = c("尻屋崎〜岩手沖のかけ廻�
 table4 = data2  %>% group_by(method,漁区名) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計))
 table4$cpue = table4$catch/table4$effort
 table4
-write.csv(table4, "table4.csv", fileEncoding = )
+write.csv(table4, "table4.csv", fileEncoding = "CP932")
 
 
 ### かけ廻し
@@ -1035,7 +1035,7 @@ th = theme(panel.grid.major = element_blank(),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 c = scale_fill_manual(values =  c("white", "black"))
 fig_a33 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 15))
-ggsave(file = "fig_a33.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig_A33.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
 
 
 
