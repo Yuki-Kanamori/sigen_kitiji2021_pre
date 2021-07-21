@@ -28,6 +28,79 @@ year = 2021
 ```
 
 # 要約
+```{r pref catch, echo=F, message=FALSE, results='hide', warning=F}
+### aomori
+ao = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "ao") %>% select(漁法, 数量kg) %>% dplyr::rename( method = 漁法, catch_kg = 数量kg)
+summary(ao)
+ao_sum = ddply(ao, .(method), summarize, sum_temp = sum(catch_kg))
+ao_sum$method
+ao_sum$method2 = c("その他", "その他", "沖底", "小底")
+ao_sum = ao_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### iwate
+iwa = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iwa") %>% select(漁業種名, "合計") %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
+iwa_sum = iwa
+iwa_sum$method
+# iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
+iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
+iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### miyagi
+miya = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "miya", startRow = 4)
+miya = miya[, c(1,2,ncol(miya))]
+miya_l = miya %>% filter(魚種コード == "きちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+miya_s = miya %>% filter(魚種コード == "こきちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+
+miya2 = left_join(miya_l, miya_s, by = "method")
+miya2[is.na(miya2)] = 0
+miya2 = miya2 %>% mutate(sum_temp = sum.x+sum.y) %>% select(method, sum_temp)
+# miya_sum = miya2 %>% filter(method != "その他漁業種") %>% filter(method != "その他漁業種・全漁法2") %>% filter(method != "沿岸小漁")
+# miya_sum$method
+# miya_sum$method2 = c("沖底", "刺網", "延縄") #沿岸小漁=その他
+# miya_sum = miya_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+miya2$method
+miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
+miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### fukusima
+fuku = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "fuku", startRow = 2) %>% 
+  select(沖合底びき網) %>% 
+  mutate(method = paste0("沖合底びき網")) %>% 
+  dplyr::rename(catch_kg = 沖合底びき網) %>% 
+  na.omit %>% 
+  dplyr::group_by(method) %>% 
+  dplyr::summarize(sum = sum(catch_kg))
+fuku_sum = fuku
+fuku_sum$method
+fuku_sum$method2 = c("沖底")
+fuku_sum = fuku_sum %>% select(-method)
+
+
+### ibaraki
+iba = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iba", startRow = 4)
+iba = iba[13, ] 
+iba = iba %>% mutate(method2 = "沖底")
+iba = iba[, 3:4]
+colnames(iba)[1] = "sum"
+# iba = iba %>% dplyr::rename(method = 漁法) %>% mutate(num = as.numeric(as.character(as.factor(iba$年計))))
+# iba = iba %>% filter(method != "小計") %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(num))
+# iba_sum = iba
+# iba_sum$method
+# iba_sum$method2 = c("その他", "延縄", "沖底", "小底", "小底")
+# iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+iba_sum = iba
+
+
+merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
+colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
+merge[is.na(merge)] = 0
+
+total_catch_pref = merge %>% gather(key = pref, value = catch, 2:ncol(merge)) %>% dplyr::summarize(total = sum(catch)/1000)
+```
+
 ```{r calculation, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
 # -2018
 olddata = read.csv(paste0(dir, "/olddata_trawl.csv")) 
@@ -189,12 +262,23 @@ length = rbind(old_length, temp_length)
 summary(length)
 
 # combine the catch data from the fishing
-total_catch_pref_old = read.csv("pref_catch_old.csv", fileEncoding = "CP932")
+# okisoko
+new_catchF = NULL
+for(i in 1:length(sheets)){
+  okisoko = read.xlsx(paste0(dir, "/okisoko_after2019.xlsx"), sheet = sheets[i])
+  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+  new_catchF = rbind(new_catchF, temp)
+}
+
+old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+okisoko_all = rbind(old_catchF, new_catchF)
+
+# prefecture
+total_catch_pref_old = read.csv(paste0(dir, "pref_catch_old.csv"), fileEncoding = "CP932")
 total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
 total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
 colnames(total_catch_pref) = c("year", "catch")
 catchF = rbind(total_catch_pref_old, total_catch_pref)
-
 
 
 ### survival rate at age
@@ -489,78 +573,6 @@ th = theme(panel.grid.major = element_blank(),
 fig13 = g+b+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 60))
 ```
 
-
-```{r pref catch, echo=F, message=FALSE, results='hide', warning=F}
-### aomori
-ao = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "ao") %>% select(漁法, 数量kg) %>% dplyr::rename( method = 漁法, catch_kg = 数量kg)
-summary(ao)
-ao_sum = ddply(ao, .(method), summarize, sum_temp = sum(catch_kg))
-ao_sum$method
-ao_sum$method2 = c("その他", "その他", "沖底", "小底")
-ao_sum = ao_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-
-
-### iwate
-iwa = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iwa") %>% select(漁業種名, "合計") %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
-iwa_sum = iwa
-iwa_sum$method
-# iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
-iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
-iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-
-
-### miyagi
-miya = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "miya", startRow = 4)
-miya = miya[, c(1,2,ncol(miya))]
-miya_l = miya %>% filter(魚種コード == "きちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
-miya_s = miya %>% filter(魚種コード == "こきちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
-
-miya2 = left_join(miya_l, miya_s, by = "method")
-miya2[is.na(miya2)] = 0
-miya2 = miya2 %>% mutate(sum_temp = sum.x+sum.y) %>% select(method, sum_temp)
-# miya_sum = miya2 %>% filter(method != "その他漁業種") %>% filter(method != "その他漁業種・全漁法2") %>% filter(method != "沿岸小漁")
-# miya_sum$method
-# miya_sum$method2 = c("沖底", "刺網", "延縄") #沿岸小漁=その他
-# miya_sum = miya_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-miya2$method
-miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
-miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-
-
-### fukusima
-fuku = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "fuku", startRow = 2) %>% 
-  select(沖合底びき網) %>% 
-  mutate(method = paste0("沖合底びき網")) %>% 
-  dplyr::rename(catch_kg = 沖合底びき網) %>% 
-  na.omit %>% 
-  dplyr::group_by(method) %>% 
-  dplyr::summarize(sum = sum(catch_kg))
-fuku_sum = fuku
-fuku_sum$method
-fuku_sum$method2 = c("沖底")
-fuku_sum = fuku_sum %>% select(-method)
-
-
-### ibaraki
-iba = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iba", startRow = 4)
-iba = iba[13, ] 
-iba = iba %>% mutate(method2 = "沖底")
-iba = iba[, 3:4]
-colnames(iba)[1] = "sum"
-# iba = iba %>% dplyr::rename(method = 漁法) %>% mutate(num = as.numeric(as.character(as.factor(iba$年計))))
-# iba = iba %>% filter(method != "小計") %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(num))
-# iba_sum = iba
-# iba_sum$method
-# iba_sum$method2 = c("その他", "延縄", "沖底", "小底", "小底")
-# iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
-iba_sum = iba
-
-
-merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
-colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
-merge[is.na(merge)] = 0
-```
-
 ```{r ABC, echo=F, results=F, warning=F}
 f_current = fishing_rate %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% summarize(mean(f))
 
@@ -629,7 +641,7 @@ z_abc = f_limit+M
 table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_tons = c(abc_target, abc_limit), 漁獲割合 = c(rate_target, rate_limit), 現状のF値からの増減 = c(changeFpercent_target$`mean(f)`, changeFpercent_limit$`mean(f)`))
 
 total_catch_pref = merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000)
-table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/100000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", total_catch_pref, catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
+table_s2 = data.frame(year = rep((year-5):year+1), 資源量_tons = abind(trend %>% dplyr::filter(year > 2016) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > 2016) %>% mutate(biomass2 = biomass/1000000) %>% select(biomass2), NA, along = 1), 漁獲量_tons = abind("not_change", "not_change", "not_change", total_catch_pref, catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > 2016, data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > 2016, data == "rate") %>% select(value), rate_this, NA, along = 1))
 
 colnames(table_s2) = c("年", "資源量_tons", "親魚量_tons", "漁獲量_tons", "F", "漁獲割合")
 
@@ -639,11 +651,14 @@ colnames(table_s2) = c("年", "資源量_tons", "親魚量_tons", "漁獲量_ton
 table_s1
 ```
 
+#### F current
+`r f_current`
+
 ```{r table_s2, echo=F}
 table_s2
 ```
-  
-  
+
+
   
 ## 3.漁業の状況
 ### (2)漁獲量の推移
@@ -654,7 +669,7 @@ total_catch_pref[1,1]
 
 #### 2020年の沖底の漁獲量（暫定値）
 ```{r trend of okisoko, echo=F}
-catchF
+okisoko_all
 # catchF %>% filter(year < 2011) %>% spread(key = year, value = catch)
 # catchF %>% filter(year > 2010) %>% spread(key = year, value = catch)
 ```

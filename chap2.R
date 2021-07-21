@@ -640,7 +640,19 @@ length = rbind(old_length, temp_length)
 summary(length)
 
 # combine the catch data from the fishing
-total_catch_pref_old = read.csv("pref_catch_old.csv", fileEncoding = "CP932")
+# okisoko
+new_catchF = NULL
+for(i in 1:length(sheets)){
+  okisoko = read.xlsx(paste0(dir, "/okisoko_after2019.xlsx"), sheet = sheets[i])
+  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+  new_catchF = rbind(new_catchF, temp)
+}
+
+old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+okisoko_all = rbind(old_catchF, new_catchF)
+
+# prefecture
+total_catch_pref_old = read.csv(paste0(dir, "pref_catch_old.csv"), fileEncoding = "CP932")
 total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
 total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
 colnames(total_catch_pref) = c("year", "catch")
@@ -890,6 +902,9 @@ summary(lm(total/1000 ~ year, data = check_trend))
 ### year trend of stock number (fig. 11)
 est = est %>% mutate(age2 = ifelse(age > 4, "5歳以上", "2-4歳"))
 summary(est)
+
+N_trend = est %>% dplyr::group_by(year, age2) %>% dplyr::summarize(number = sum(number)/1000)
+
 
 est2 = est
 est2[is.na(est2)] = 0
