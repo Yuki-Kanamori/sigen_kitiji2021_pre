@@ -363,6 +363,32 @@ ggsave(file = "fig_A32.png", plot = figa32, units = "in", width = 11.69, height 
 # please change here
 setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
 
+##### catch_kg for each pref. and season (1-6, and 7-12)
+### aomori
+ao2 = read.xlsx("catch_pref.xlsx", sheet = "ao") %>% select(月, 数量kg) %>% dplyr::rename(catch_kg = 数量kg, month = 月) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+summary(ao2)
+ao_sum2 = ao %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### iwate
+iwa2 = read.xlsx("catch_pref.xlsx", sheet = "iwa") %>% select(-"合計", -"市場名", -"漁業種名", -"規格名") 
+iwa2 = iwa2  %>% tidyr::gather(key = date, value = catch_kg, 1:ncol(iwa2)) %>% mutate(month = as.numeric(str_sub(date, 6, 8))) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+iwa_sum2 = iwa2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### fukusima
+fuku2 = read.xlsx("catch_pref.xlsx", sheet = "fuku", startRow = 2) %>% na.omit()
+colnames(fuku2) = c("month", "catch_kg")
+fuku2 = fuku2 %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12")) 
+fuku_sum2 = fuku2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### ibaraki
+iba2 = read.xlsx("catch_pref.xlsx", sheet = "iba", startRow = 4)
+iba2 = iba2[-13, -2] 
+iba2 = iba2 %>% mutate(month = rep(1:12)) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12")) 
+iba_sum2 = iba2 %>% na.omit() %>%dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(総計))
+
+
+
+
 # (1-B) きちじとこきちじの漁獲量---------------------------------------------------------
 g_miya = read.csv("catch_miyagi.csv", fileEncoding = "CP932")
 summary(g_miya)
@@ -483,8 +509,12 @@ miyagi = miyagi %>% mutate(weight2 = mean*rate) %>% mutate(pref = 'Miyagi')
 
 total = miyagi %>% group_by(year, season) %>% dplyr::summarize(total = sum(weight2)) %>% mutate(pref = "miyagi") %>% as.data.frame()
 head(total)
-fukuiba_mae = 4248.8+1667.1　#fuku+iba
-fukuiba_usiro = 948.5+16591.9 
+
+# fukuiba_mae = 4248.8+1667.1　#fuku+iba
+# fukuiba_usiro = 948.5+16591.9 
+fukuiba_mae = fuku_sum2 %>% filter(season == "1-6") %>% select(sum_kg) + iba_sum2 %>% filter(season == "1-6") %>% select(sum_kg)
+fukuiba_usiro = fuku_sum2 %>% filter(season == "7-12") %>% select(sum_kg) + iba_sum2 %>% filter(season == "7-12") %>% select(sum_kg)
+
 rate_fukuiba_mae = (total %>% filter(season == '1-6') %>% select(total) + fukuiba_mae)/total %>% filter(season == '1-6') %>% select(total)
 rate_fukuiba_usiro = (total %>% filter(season == '7-12') %>% select(total) + fukuiba_usiro)/total %>% filter(season == '7-12') %>% select(total)
 
@@ -641,8 +671,10 @@ total_ao = ddply(ao, .(season), summarize, total = sum(biomass)/1000)
 
 (ddply(tai_hati, .(season), summarize, sum = sum(kg)))
 
-catch_mae = 58551+108677 #aomori+iwate?
-catch_usiro = 4105.3+44273.1
+# catch_mae = 58551+108677 #aomori+iwate?
+# catch_usiro = 4105.3+44273.1
+catch_mae = ao_sum2 %>% filter(season == "1-6") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "1-6") %>% select(sum_kg)
+catch_usiro = ao_sum2 %>% filter(season == "7-12") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "7-12") %>% select(sum_kg)
 
 total_ao = total_ao %>% mutate(catch = ifelse(total_ao$season == "1-6", catch_mae, catch_usiro)) %>% mutate(rate = catch/total)
 
@@ -690,8 +722,8 @@ th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
            axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(2)),
-           axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
            legend.title = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)),
