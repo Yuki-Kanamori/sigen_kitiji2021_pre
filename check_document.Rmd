@@ -1187,14 +1187,19 @@ dev.off()
 ```
 
 
-# 要約（表中と表下）
+# 要約（表上・表中・表下）
+#### 今年の資源量
+`r trend %>% filter(year == 2021)`
+
+#### 表
 ```{r table_s1, echo=F}
 table_s1
 ```
 
-#### F current
+#### 表下のF current
 `r f_current`
 
+#### 2ページ目の表
 ```{r table_s2, echo=F}
 table_s2
 ```
