@@ -1051,18 +1051,18 @@ abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))) %>
 abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("age")) # get the weight of last year (2020) and join the weight data into the abundance of this year (2021)
 
 next_year = NULL
-for(i in 1:(length(abund_abc$age)-1)){
+for(i in 1:(length(abund_this$age)-1)){
   #i=1
   if(i == 1){
     temp = number_2old_jan_this_sel
     next_year = rbind(next_year, temp)
   }
-  if(i < (length(abund_abc$age)-1)){
-    temp = abund_abc$number_est[i]*s_current$z
+  if(i < (length(abund_this$age)-1)){
+    temp = abund_this$number_est[i]*s_current$z
     next_year = rbind(next_year, temp)
   }
-  if(i == (length(abund_abc$age)-1)){
-    temp = (abund_abc$number_est[i]+abund_abc$number_est[i+1])*s_current$z
+  if(i == (length(abund_this$age)-1)){
+    temp = (abund_this$number_est[i]+abund_this$number_est[i+1])*s_current$z
     next_year = rbind(next_year, temp)
   }
 }

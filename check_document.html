@@ -1644,7 +1644,7 @@ summary {
 <h1>要約（表中と表下）</h1>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["Target_Limit"],"name":[1],"type":["chr"],"align":["left"]},{"label":["ABC_tons"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["漁獲割合"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["現状のF値からの増減"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"Target","2":"467.1059","3":"4.240195","4":"-4.162369"},{"1":"Limit","2":"583.8823","3":"5.300244","4":"18.267715"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["Target_Limit"],"name":[1],"type":["chr"],"align":["left"]},{"label":["ABC_tons"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["漁獲割合"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["現状のF値からの増減"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"Target","2":"477.0551","3":"4.240195","4":"-4.162369"},{"1":"Limit","2":"596.3189","3":"5.300244","4":"18.267715"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 <div id="f-current" class="section level4">
@@ -1656,7 +1656,7 @@ summary {
 </div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["年"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["資源量_tons"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["親魚量_tons"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["漁獲量_tons"],"name":[4],"type":["chr"],"align":["left"]},{"label":["F"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["漁獲割合"],"name":[6],"type":["dbl"],"align":["right"]}],"data":[{"1":"2017","2":"11245.95","3":"4998.709","4":"not_change","5":"0.04449898","6":"4.090361"},{"1":"2018","2":"10731.66","3":"5048.930","4":"not_change","5":"0.05685873","6":"5.205479"},{"1":"2019","2":"9602.01","3":"4464.205","4":"not_change","5":"0.05633745","6":"5.145771"},{"1":"2020","2":"12515.62","3":"5567.217","4":"391.9046","5":"0.03392766","6":"3.131324"},{"1":"2021","2":"12557.11","3":"7256.469","4":"564.550046084205","5":"0.04904128","6":"4.495859"},{"1":"2022","2":"11016.14","3":"NA","4":"NA","5":"NA","6":"NA"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["年"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["資源量_tons"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["親魚量_tons"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["漁獲量_tons"],"name":[4],"type":["chr"],"align":["left"]},{"label":["F"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["漁獲割合"],"name":[6],"type":["dbl"],"align":["right"]}],"data":[{"1":"2017","2":"11245.95","3":"4998.709","4":"not_change","5":"0.04449898","6":"4.090361"},{"1":"2018","2":"10731.66","3":"5048.930","4":"not_change","5":"0.05685873","6":"5.205479"},{"1":"2019","2":"9602.01","3":"4464.205","4":"not_change","5":"0.05633745","6":"5.145771"},{"1":"2020","2":"12515.62","3":"5567.217","4":"391.9046","5":"0.03392766","6":"3.131324"},{"1":"2021","2":"12557.11","3":"7256.469","4":"564.550046084205","5":"0.04904128","6":"4.495859"},{"1":"2022","2":"11250.78","3":"NA","4":"NA","5":"NA","6":"NA"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
@@ -1794,10 +1794,10 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 <h4>2022年の資源量</h4>
 <pre class="r"><code>#資源量
 (total_biomass_next = sum(abund_abc$next_year_biomass))</code></pre>
-<pre><code>## [1] 11016.14</code></pre>
+<pre><code>## [1] 11250.78</code></pre>
 <pre class="r"><code>#尾数
 (total_number_next = sum(abund_abc$next_year_number))</code></pre>
-<pre><code>## [1] 72184.57</code></pre>
+<pre><code>## [1] 73033.55</code></pre>
 </div>
 <div id="年の資源量と資源尾数" class="section level4">
 <h4>2021年の資源量と資源尾数</h4>
@@ -1820,19 +1820,34 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 <div id="abcの再評価表中" class="section level3">
 <h3>(4) ABCの再評価（表中）</h3>
 <!----
-2020年の資源量は1.2515621\times 10^{4}，F limitは1.2515621\times 10^{4}，F targetは530.6867671．  
+2020年の資源量は1.2557111\times 10^{4}，F limitは1.2557111\times 10^{4}，F targetは532.4460303．  
 漁獲量とFは要約にある．  
 --->
-<pre class="r"><code># 資源量
-(total_biomass_this = sum(abund_abc$biomass_est))</code></pre>
+<div id="section" class="section level4">
+<h4>2020</h4>
+<pre class="r"><code># 資源量 (2020)
+(total_biomass_2ago = sum(est %&gt;% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %&gt;% select(biomass)))</code></pre>
 <pre><code>## [1] 12515.62</code></pre>
-<pre class="r"><code># limit
-(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)</code></pre>
+<pre class="r"><code># limit (2020)
+(re_abc_limit_2ago = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)</code></pre>
 <pre><code>## [1] 663.3585</code></pre>
-<pre class="r"><code># target
-(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)</code></pre>
+<pre class="r"><code># target (2020)
+(re_abc_target_2ago = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)</code></pre>
 <pre><code>## [1] 530.6868</code></pre>
 <pre class="r"><code># 漁獲量とFは要約にある</code></pre>
+</div>
+<div id="section-1" class="section level4">
+<h4>2021</h4>
+<pre class="r"><code># 資源量 (2021)
+(total_biomass_this = sum(abund_abc$biomass_est))</code></pre>
+<pre><code>## [1] 12557.11</code></pre>
+<pre class="r"><code># limit (2021)
+(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)</code></pre>
+<pre><code>## [1] 665.5575</code></pre>
+<pre class="r"><code># target (2021)
+(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)</code></pre>
+<pre><code>## [1] 532.446</code></pre>
+</div>
 </div>
 </div>
 </div>
