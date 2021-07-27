@@ -1139,25 +1139,25 @@ fig_a41 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continu
 
 
 ```{r save, echo=F, warning=F, message=F, results=F}
-dir.create(paste0(dir, "outputs"))
-dir_output = paste0(dir, "outputs")
+dir.create(paste0(dir, "output"))
+dir_output = paste0(dir, "output")
 setwd(dir_output)
 # write.csv(catch_t1, "catch_t1.csv", fileEncoding = "CP932")
-write.csv(catch_t2, "catch_t2.csv", fileEncoding = "CP932")
-write.csv(catch_new, "catch2020.csv", fileEncoding = "CP932") #来年の資源評価で使うデータ
-write.csv(merge, "table1.csv", fileEncoding = "CP932")
-write.csv(catch_t3, "table2.csv", fileEncoding = "CP932")
-write.csv(effort_t1, "table3.csv", fileEncoding = "CP932")
-write.csv(table4, "table4.csv", fileEncoding = "CP932")
+write.csv(catch_t2, "catch_t2.csv", fileEncoding = "CP932", row.names=F)
+write.csv(catch_new, "catch2020.csv", fileEncoding = "CP932", row.names=F) #来年の資源評価で使うデータ
+write.csv(merge, "table1.csv", fileEncoding = "CP932", row.names=F)
+write.csv(catch_t3, "table2.csv", fileEncoding = "CP932", row.names=F)
+write.csv(effort_t1, "table3.csv", fileEncoding = "CP932", row.names=F)
+write.csv(table4, "table4.csv", fileEncoding = "CP932", row.names=F)
 
-write.csv(trawl, "tableA4-1.csv", fileEncoding = "CP932")
-write.csv(length, "tableA4-2.csv", fileEncoding = "CP932")
-write.csv(weight, "tableA4-3.csv", fileEncoding = "CP932")
-write.csv(q, "tableA4-4.csv", fileEncoding = "CP932")
-write.csv(abund_oct_sel, "tableA4-5&6.csv", fileEncoding = "CP932")
-write.csv(est, "tableA4-7&8.csv", fileEncoding = "CP932", row.names=F) 
-write.csv(biomass_female, "tableA4-8female.csv", fileEncoding = "CP932")
-write.csv(fishing_trend, "tableA4-9.csv", fileEncoding = "CP932")
+write.csv(trawl, "tableA4-1.csv", fileEncoding = "CP932", row.names=F)
+write.csv(length, "tableA4-2.csv", fileEncoding = "CP932", row.names=F)
+write.csv(weight, "tableA4-3.csv", fileEncoding = "CP932", row.names=F)
+write.csv(q, "tableA4-4.csv", fileEncoding = "CP932", row.names=F)
+write.csv(abund_oct_sel %>% mutate(number_sel_thou = number_sel/1000) %>% rename(biomass_sel_ton = biomass_sel), "tableA4-5&6.csv", fileEncoding = "CP932", row.names=F)
+write.csv(est %>% mutate(number = number/1000) %>% rename(number_thou = number, biomass_ton = biomass), "tableA4-7&8.csv", fileEncoding = "CP932", row.names=F) 
+write.csv(biomass_female %>% mutate(biomass_ton = biomass/1000000) %>% rename(year = year2), "tableA4-8female.csv", fileEncoding = "CP932", row.names=F)
+write.csv(fishing_trend, "tableA4-9.csv", fileEncoding = "CP932", row.names=F)
 write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "table9.csv", fileEncoding = "CP932", row.names=F) 
 
 write.csv(number_at_age %>% dplyr::rename(age_length = age), "number_at_age.csv", fileEncoding = "CP932", row.names=F)
