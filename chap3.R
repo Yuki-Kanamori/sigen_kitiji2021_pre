@@ -563,11 +563,11 @@ pn2$taityo = as.numeric(pn2$BL)/10 # with message "about "get NA"
 
 
 # pとs
-ps = read.csv("seimitu.csv", fileEncoding = "CP932") %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"), tag = paste(taityo, meigara, month, total_number_in_box, sep = "_"), tag_box = paste(month, total_number_in_box,meigara,  sep = "_"), taityo2 = taityo%/%10)
+ps = read.csv("seimitu.csv", fileEncoding = "CP932") %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"), tag = paste(taityo, meigara, month, total_number_in_box, sep = "_"), tag_box = paste(month, total_number_in_box,meigara,  sep = "_"), taityo2 = taityo%/%10, meigara = ifelse(meigara == "SS", "P", "S"))
 
-unique(ps$tag_box)
+# unique(ps$tag_box)
 
-comp_ps = ps %>% group_by(season, taityo2, meigara) %>% dplyr::summarize(count = n())
+comp_ps = ps %>% dplyr::group_by(season, taityo2, meigara) %>% dplyr::summarize(count = n())
 (n_total = ddply(comp_ps, .(season, meigara), summarize, n_total = sum(count)))
 n_total = n_total %>% mutate(n_box = c(3, 2)) %>% mutate(n_iri_bisu = n_total/n_box)
 

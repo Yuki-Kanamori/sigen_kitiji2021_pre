@@ -24,7 +24,7 @@
 ○catch_miyagi.csv: 宮城県からもらった2020年の漁獲物データ．catch_pref.csvを作成したデータの別シート．    
 ○taityo_miyagi.csv: 宮城県からもらった2019年の漁獲物の体長データ（その1）．フレスコから落とす  
 ○yatyo_miyagi.csv: 宮城県からもらった2019年の漁獲物の体長データ（その2）．箱入れキチジ体長.xlsxをcsv化  
-・hati_sokutei.csv: 青森県からもらった2019年の漁獲物の体長データ  
+○hati_sokutei.csv: 青森県からもらった2019年の漁獲物の体長データ．漁獲量データそのもの？  
 ・seimitu.csv: 庁舎で精密測定した2019年の体長データ（sokouo1より）  
 ・trawl_ns_length2.csv: 2019年のトロール調査で得られた南北別体長別資源尾数詳細（mdbより）  
 ・lonlat2020.csv: 2019年のトロール調査点の緯度経度情報（mdbより）  
