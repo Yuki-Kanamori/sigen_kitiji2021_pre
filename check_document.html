@@ -1807,8 +1807,8 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
   </script>
 </div>
 </div>
-<div id="年の資源量3段落目" class="section level4">
-<h4>2022年の資源量（3段落目）</h4>
+<div id="年の資源量と資源尾数3段落目" class="section level4">
+<h4>2022年の資源量と資源尾数（3段落目）</h4>
 <pre class="r"><code>#資源量
 (total_biomass_next = sum(abund_abc$next_year_biomass))</code></pre>
 <pre><code>## [1] 11250.78</code></pre>
@@ -1816,20 +1816,20 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 (total_number_next = sum(abund_abc$next_year_number))</code></pre>
 <pre><code>## [1] 73033.55</code></pre>
 </div>
-<div id="年の資源量と資源尾数3段落目" class="section level4">
+<div id="年の資源量と資源尾数3段落目-1" class="section level4">
 <h4>2021年の資源量と資源尾数（3段落目）</h4>
 <pre class="r"><code>#資源量
-(trend %&gt;% dplyr::rename(tons = total))</code></pre>
+(trend %&gt;% dplyr::rename(ton = total) %&gt;% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))))</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["tons"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"1996","2":"1610.912"},{"1":"1997","2":"1751.872"},{"1":"1998","2":"2448.415"},{"1":"1999","2":"2043.710"},{"1":"2000","2":"3134.880"},{"1":"2001","2":"3193.668"},{"1":"2002","2":"3335.780"},{"1":"2003","2":"4487.893"},{"1":"2004","2":"4773.222"},{"1":"2005","2":"4995.853"},{"1":"2006","2":"5124.898"},{"1":"2007","2":"5141.556"},{"1":"2008","2":"6760.498"},{"1":"2009","2":"6923.137"},{"1":"2010","2":"7409.528"},{"1":"2011","2":"8748.487"},{"1":"2012","2":"7658.811"},{"1":"2013","2":"7613.809"},{"1":"2014","2":"8000.090"},{"1":"2015","2":"10383.245"},{"1":"2016","2":"12020.854"},{"1":"2017","2":"11245.952"},{"1":"2018","2":"10731.663"},{"1":"2019","2":"9602.010"},{"1":"2020","2":"12515.621"},{"1":"2021","2":"12557.111"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["ton"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"2021","2":"12557.11"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 <pre class="r"><code>#尾数
-(est2 %&gt;% dplyr::group_by(year) %&gt;% dplyr::summarize(N_thou = sum(total)/1000))</code></pre>
+(est2 %&gt;% dplyr::group_by(year) %&gt;% dplyr::summarize(N_thou = sum(total)/1000) %&gt;% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))))</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["N_thou"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"1996","2":"11989.46"},{"1":"1997","2":"14310.27"},{"1":"1998","2":"18439.38"},{"1":"1999","2":"13019.57"},{"1":"2000","2":"21669.30"},{"1":"2001","2":"23364.06"},{"1":"2002","2":"44164.32"},{"1":"2003","2":"101560.18"},{"1":"2004","2":"108843.08"},{"1":"2005","2":"131831.81"},{"1":"2006","2":"117248.60"},{"1":"2007","2":"94220.25"},{"1":"2008","2":"104864.89"},{"1":"2009","2":"105262.76"},{"1":"2010","2":"92529.68"},{"1":"2011","2":"95494.65"},{"1":"2012","2":"78620.91"},{"1":"2013","2":"73725.68"},{"1":"2014","2":"75413.00"},{"1":"2015","2":"87467.83"},{"1":"2016","2":"96163.62"},{"1":"2017","2":"106207.35"},{"1":"2018","2":"85424.93"},{"1":"2019","2":"71776.70"},{"1":"2020","2":"84617.91"},{"1":"2021","2":"85613.13"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["year"],"name":[1],"type":["int"],"align":["right"]},{"label":["N_thou"],"name":[2],"type":["dbl"],"align":["right"]}],"data":[{"1":"2021","2":"85613.13"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
@@ -1842,27 +1842,27 @@ max(trend$total)-(max(trend$total)-min(trend$total))*1/3</code></pre>
 </div>
 </div>
 </div>
-<div id="abcの再評価表中" class="section level3">
-<h3>(4) ABCの再評価（表中）</h3>
+<div id="abcの再評価表" class="section level3">
+<h3>(4) ABCの再評価（表）</h3>
 <!----
 2020年の資源量は1.2557111\times 10^{4}，F limitは1.2557111\times 10^{4}，F targetは532.4460303．  
 漁獲量とFは要約にある．  
 --->
-<div id="section" class="section level4">
-<h4>2020</h4>
+<div id="行目" class="section level4">
+<h4>2020（3行目）</h4>
 <pre class="r"><code># 資源量 (2020)
-(total_biomass_2ago = sum(est %&gt;% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %&gt;% select(biomass)))</code></pre>
+(total_biomass_last = sum(est %&gt;% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %&gt;% select(biomass)))</code></pre>
 <pre><code>## [1] 12515.62</code></pre>
 <pre class="r"><code># limit (2020)
-(re_abc_limit_2ago = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)</code></pre>
+(re_abc_limit_last = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_last)</code></pre>
 <pre><code>## [1] 663.3585</code></pre>
 <pre class="r"><code># target (2020)
-(re_abc_target_2ago = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)</code></pre>
+(re_abc_target_last = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_last)</code></pre>
 <pre><code>## [1] 530.6868</code></pre>
 <pre class="r"><code># 漁獲量とFは要約にある</code></pre>
 </div>
-<div id="section-1" class="section level4">
-<h4>2021</h4>
+<div id="行目-1" class="section level4">
+<h4>2021（5行目）</h4>
 <pre class="r"><code># 資源量 (2021)
 (total_biomass_this = sum(abund_abc$biomass_est))</code></pre>
 <pre><code>## [1] 12557.11</code></pre>

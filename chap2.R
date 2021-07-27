@@ -1096,10 +1096,10 @@ z_abc = f_limit+M
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
-# re-estimation of ABC two years ago
-(total_biomass_2ago = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(biomass)))
-(re_abc_limit_2ago = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
-(re_abc_target_2ago = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
+# re-estimation of ABC last year
+(total_biomass_last = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(biomass)))
+(re_abc_limit_last = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_last)
+(re_abc_target_last = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_last)
 
 ### fisheries catch, F, and fishing rate in this year (the second table in the document)
 (rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
