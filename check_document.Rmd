@@ -1157,6 +1157,7 @@ write.csv(q, "tableA4-4.csv", fileEncoding = "CP932")
 write.csv(abund_oct_sel, "tableA4-5&6.csv", fileEncoding = "CP932")
 write.csv(est, "tableA4-7&8.csv", fileEncoding = "CP932", row.names=F) 
 write.csv(biomass_female, "tableA4-8female.csv", fileEncoding = "CP932")
+write.csv(fishing_trend, "tableA4-9.csv", fileEncoding = "CP932")
 write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "table9.csv", fileEncoding = "CP932", row.names=F) 
 
 write.csv(number_at_age %>% dplyr::rename(age_length = age), "number_at_age.csv", fileEncoding = "CP932", row.names=F)
