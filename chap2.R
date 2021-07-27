@@ -639,25 +639,9 @@ for(i in 1:length(sheets)){
 length = rbind(old_length, temp_length)
 summary(length)
 
+####### mistake in 2020 assessment (used okisoko data for catch) #######
 # combine the catch data from the fishing
 # okisoko
-new_catchF = NULL
-for(i in 1:length(sheets)){
-  okisoko = read.xlsx(paste0(dir, "/okisoko_after2019.xlsx"), sheet = sheets[i])
-  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
-  new_catchF = rbind(new_catchF, temp)
-}
-
-old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
-okisoko_all = rbind(old_catchF, new_catchF)
-
-# prefecture
-total_catch_pref_old = read.csv(paste0(dir, "pref_catch_old.csv"), fileEncoding = "CP932")
-total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
-total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
-colnames(total_catch_pref) = c("year", "catch")
-catchF = rbind(total_catch_pref_old, total_catch_pref)
-
 # new_catchF = NULL
 # for(i in 1:length(sheets)){
 #   okisoko = read.xlsx("okisoko_after2019.xlsx", sheet = sheets[i])
@@ -667,6 +651,16 @@ catchF = rbind(total_catch_pref_old, total_catch_pref)
 # 
 # old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
 # catchF = rbind(old_catchF, new_catchF)
+########################################################################
+
+# prefecture
+total_catch_pref_old = read.csv("pref_catch_old.csv", fileEncoding = "CP932")
+total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
+total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
+colnames(total_catch_pref) = c("year", "catch")
+catchF = rbind(total_catch_pref_old, total_catch_pref)
+
+
 summary(catchF)
 
 
@@ -1085,14 +1079,19 @@ f_limit = 0.058
 f_target = f_limit*0.8
 z_abc = f_limit+M
 
-# ABC
+# ABC next year
 (abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_next)
 (abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next)
 
-# re-estimation of ABC in this year
+# re-estimation of ABC this year
 (total_biomass_this = sum(abund_abc$biomass_est))
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+# re-estimation of ABC two years ago
+(total_biomass_2ago = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-2)) %>% select(biomass)))
+(re_abc_limit_2ago = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
+(re_abc_target_2ago = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
 
 ### fisheries catch, F, and fishing rate in this year (the second table in the document)
 (rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
