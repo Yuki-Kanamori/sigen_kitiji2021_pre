@@ -1049,9 +1049,17 @@ number_2old_jan_this = number_2old_oct_last*survival_2month %>% filter(year == a
 
 number_2old_jan_this_sel = number_2old_jan_this/q %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 2) %>% select(q)
 
-# the estimated abundance in step 4
-abund_abc = est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass)
-abund_abc = left_join(abund_abc, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("year", "age"))
+
+################################################################################################
+####### estimate the abundance in next year using the abundance of this year in January #######
+####### mistake in 2020 assessment #######
+# weight is from the survey of last year in Oct., therefore the year of weight is last year (i.e., the year is different between est and weight)
+# est = estimated abundance in January
+# abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass)
+# abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("year", "age"))
+################################################################################################
+abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass) # get the abundance of this year (2021)
+abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("age")) # get the weight of last year (2020) and join the weight data into the abundance of this year (2021)
 
 next_year = NULL
 for(i in 1:(length(abund_abc$age)-1)){
@@ -1070,7 +1078,7 @@ for(i in 1:(length(abund_abc$age)-1)){
   }
 }
 
-abund_abc = abund_abc %>% mutate(next_year_number = next_year$number/1000) %>% mutate(next_year_biomass = next_year_number*weight/1000)
+abund_abc = abund_this %>% mutate(next_year_number = next_year$number/1000) %>% mutate(next_year_biomass = next_year_number*weight/1000)
 
 (total_number_next = sum(abund_abc$next_year_number))
 (total_biomass_next = sum(abund_abc$next_year_biomass))
@@ -1088,8 +1096,8 @@ z_abc = f_limit+M
 (re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
 
-# re-estimation of ABC two years ago
-(total_biomass_2ago = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-2)) %>% select(biomass)))
+# # re-estimation of ABC two years ago
+(total_biomass_2ago = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(biomass)))
 (re_abc_limit_2ago = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
 (re_abc_target_2ago = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_2ago)
 
