@@ -1449,16 +1449,16 @@ dev.off()
 
 
 
-# 要約（表上・表中・表下）
-#### 今年の資源量
+# 要約
+#### 今年の資源量（表の上の文章）
 `r trend %>% filter(year == 2021)`
 
 #### 表
-```{r table_s1, echo=F}
+```{r table_s1_summary, echo=F}
 table_s1
 ```
 
-#### 表下のF current
+#### F current（表の下の文章）
 `r f_current`
 
 #### 2ページ目の表
@@ -1470,12 +1470,12 @@ table_s2
   
 ## 3.漁業の状況
 ### (2)漁獲量の推移
-#### 2020年の全漁業種類を合わせた漁獲量（暫定値）
+#### 2020年の全漁業種類を合わせた漁獲量（1段落目）
 ```{r trend of pref. fisheries catch, echo=F}
 total_catch_pref[1,1]
 ```
 
-#### 2020年の沖底の漁獲量（暫定値）
+#### 2020年の沖底の漁獲量（2段落目）
 ```{r trend of okisoko, echo=F}
 okisoko_all
 # catchF %>% filter(year < 2011) %>% spread(key = year, value = catch)
@@ -1491,19 +1491,19 @@ effort_t2
 
 ## 4.資源の状態
 ### (4) 資源量と漁獲割合の推移
-#### 推定資源量
+#### 推定資源量（1段落目）
 ```{r table_biomass, echo=F}
-trend %>% dplyr::rename(tons = total)
+trend %>% dplyr::rename(ton = total)
 # trend %>% filter(year < 2011) %>% spread(key = year, value = total)
 # trend %>% filter(year > 2010) %>% spread(key = year, value = total)
 ```
 
-#### 資源尾数
+#### 資源尾数（2段落目）
 ```{r table_N, echo=F, message=F}
 N_trend
 ```
 
-#### F値
+#### F値（3段落目）
 ```{r table_fishing trend1, echo=F}
 fishing_trend %>% filter(data == "f") %>% select(-data, -data2) %>% dplyr::rename("F" = value)
 # fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
@@ -1512,7 +1512,7 @@ fishing_trend %>% filter(data == "f") %>% select(-data, -data2) %>% dplyr::renam
 # fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
 ```
 
-#### 漁獲割合
+#### 漁獲割合（3段落目）
 ```{r table_fishing trend2, echo=F}
 fishing_trend %>% filter(data == "rate") %>% select(-data, -data2) %>% dplyr::rename("%" = value)
 # fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
@@ -1550,17 +1550,17 @@ f_current
 -----
 ## 2022年ABC算定
 ### (2) ABCの算定
-#### 2021年の年間生残率
+#### 2021年の年間生残率（1段落目）
 ```{r survival rate}
 s_current
 ```
 
-#### 1歳魚が翌年の2歳魚になる比率の直近3年間の平均値
+#### 1歳魚が翌年の2歳魚になる比率の直近3年間の平均値（2段落目）
 ```{r survival rate at age 1}
 s1_current
 ```
 
-#### 2022年の資源量
+#### 2022年の資源量（3段落目）
 ```{r stock 2022}
 #資源量
 (total_biomass_next = sum(abund_abc$next_year_biomass))
@@ -1569,7 +1569,7 @@ s1_current
 (total_number_next = sum(abund_abc$next_year_number))
 ```
 
-#### 2021年の資源量と資源尾数
+#### 2021年の資源量と資源尾数（3段落目）
 ```{r stock 2021, message=F}
 #資源量
 (trend %>% dplyr::rename(tons = total))
@@ -1578,7 +1578,10 @@ s1_current
 (est2 %>% dplyr::group_by(year) %>% dplyr::summarize(N_thou = sum(total)/1000))
 ```
 
-
+#### 2022年のABC（4段落目と表）
+```{r table_s1, echo=F}
+table_s1
+```
 
 ### (4) ABCの再評価（表中）
 <!----
