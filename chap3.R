@@ -367,7 +367,7 @@ setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
 ### aomori
 ao2 = read.xlsx("catch_pref.xlsx", sheet = "ao") %>% select(月, 数量kg) %>% dplyr::rename(catch_kg = 数量kg, month = 月) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
 summary(ao2)
-ao_sum2 = ao %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+ao_sum2 = ao2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
 
 ### iwate
 iwa2 = read.xlsx("catch_pref.xlsx", sheet = "iwa") %>% select(-"合計", -"市場名", -"漁業種名", -"規格名") 
@@ -535,11 +535,17 @@ g+b+f+labs+theme_bw()
 
 
 # (3) 八戸 ------------------------------------------------------------------
+setwd("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021")
 tai_hati = read.csv("hati_sokutei.csv", fileEncoding = "CP932")
+
 # ファイルの規格コードが変なので，修正
-(code = data.frame(規格名 = unique(tai_hati$規格名)))
+code_data = read.csv("/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2020/hati_sokutei.csv", fileEncoding = "CP932")
+(code = data.frame(規格名 = unique(code_data$規格名)))
 code$CD = c(NA, 13, 27, 28, 7, 8, 7, 7, 8, 31, 68, 31, 8, NA, 7, 8, NA, 27)
-tai_hati = full_join(tai_hati, code, by = "規格名")
+
+(code2 = data.frame(規格名 = unique(tai_hati$規格名)))
+# tai_hati = full_join(tai_hati, code, by = "規格名")
+tai_hati = left_join(tai_hati, code, by = "規格名")
 summary(tai_hati)
 tai_hati[is.na(tai_hati)] = 0
 colnames(tai_hati)
@@ -588,7 +594,7 @@ summary(pn)
 
 pn2 = ddply(pn, .(season, BL), summarize, total_number = sum(number))
 summary(pn2)
-pn2$taityo = as.numeric(pn2$BL)/10 # with message "about "get NA"
+pn2$taityo = as.numeric(pn2$BL)/10 # with message about getting NA
 
 
 
@@ -676,9 +682,11 @@ total_ao = ddply(ao, .(season), summarize, total = sum(biomass)/1000)
 catch_mae = ao_sum2 %>% filter(season == "1-6") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "1-6") %>% select(sum_kg)
 catch_usiro = ao_sum2 %>% filter(season == "7-12") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "7-12") %>% select(sum_kg)
 
-total_ao = total_ao %>% mutate(catch = ifelse(total_ao$season == "1-6", catch_mae, catch_usiro)) %>% mutate(rate = catch/total)
+total_ao = total_ao %>% mutate(catch = ifelse(total_ao$season == "1-6", as.numeric(catch_mae), as.numeric(catch_usiro))) %>% mutate(rate = catch/total)
+summary(total_ao)
 
 ao = left_join(ao, total_ao, by = "season") %>% mutate(number = rate*total_number)
+
 summary(ao)
 
 
@@ -729,5 +737,5 @@ th = theme(panel.grid.major = element_blank(),
            strip.text.x = element_text(size = rel(1.8)),
            legend.position = c(0.85, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
-fig9 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(2, 36, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 5))
+fig9 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(2, 36, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 7))
 ggsave(file = "fig9.png", plot = fig9, units = "in", width = 11.69, height = 8.27)
