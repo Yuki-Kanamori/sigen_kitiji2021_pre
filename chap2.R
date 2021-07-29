@@ -360,23 +360,36 @@ levels(eff$label)
 eff$label = factor(eff$label, levels = c("尻屋崎〜岩手沖のかけ廻し", "岩手沖の2そう曳き", "金華山~房総のトロール"))
 
 g = ggplot(eff, aes(x = year, y = sum/1000, shape = label, linetype = label, fill = label))
-p = geom_point(size = 5)
+# p = geom_point(size = 5)
+p = geom_point(size = 3)
 l = geom_line(size = 1)
 lab = labs(x = "年", y = "有漁網数 (千)", shape = "漁業種")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            legend.text = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.8, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.8), angle = 90),
-           axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.5)),
-           axis.title.y = element_text(size = rel(1.5)),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
            legend.title = element_blank(),
-           legend.text = element_text(size = rel(1.8)),
-           strip.text.x = element_text(size = rel(1.8)),
-           legend.position = c(0.8, 0.8),
-           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+           legend.text = element_text(size = rel(0.8)),
+           strip.text.x = element_text(size = rel(0.8)),
+           legend.position = c(0.755, 0.763),
+           legend.background = element_rect(fill = "white", size = 0.3, linetype = "solid", colour = "black"))
 # fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2019, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))+scale_linetype_manual(values = c("dotted", "solid", "dotted"))
 fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_linetype_manual(values = c("dotted", "solid", "dotted"),)+ guides(linetype=FALSE, fill = FALSE)+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))
-ggsave(file = "fig6.png", plot = fig6, units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig6.png", plot = fig6, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig6.png", plot = fig6, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
 
 
 # step 3; CPUE trend ----------------------------------------------------------
