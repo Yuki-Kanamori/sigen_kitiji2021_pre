@@ -301,23 +301,37 @@ levels(catch$method)
 catch$method = factor(catch$method, levels = c("沖底・小底以外", "小底", "沖底"))
 
 g = ggplot(catch, aes(x = year, y = catch_t, fill = method))
-b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+b = geom_bar(stat = "identity", width = 0.6, colour = "black")
 lab = labs(x = "年", y = "漁獲量 (トン)", fill = "漁業種")
-col_catch = c("grey50", "white", "grey0")
+# col_catch = c("grey50", "white", "grey0")
+col_catch = c("#FFF100", "white", "grey0")
 c = scale_fill_manual(values = col_catch)
-th = theme(panel.grid.major = element_blank(),
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            legend.text = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.85, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+th = theme(aspect.ratio = 6.88/11.49,
+           panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
-           axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.5)),
-           axis.title.y = element_text(size = rel(1.5)),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
            legend.title = element_blank(),
-           legend.text = element_text(size = rel(1.8)),
-           strip.text.x = element_text(size = rel(1.8)),
-           legend.position = c(0.85, 0.8),
+           legend.text = element_text(size = rel(0.8)),
+           strip.text.x = element_text(size = rel(0.8)),
+           legend.position = c(0.75, 0.7),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
-ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig5.png", plot = fig5, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
 
 catch2 = catch %>% dplyr::group_by(year) %>% dplyr::summarize(total_catch_t = sum(catch_t))
 
@@ -880,18 +894,29 @@ g = ggplot(trend, aes(x = year, y = total/1000))
 p = geom_point(shape = 20, size = 6)
 l = geom_line(size = 0.6, linetype = "solid")
 lab = labs(x = "年", y = "資源量（千トン）", shape = "")
-th = theme(panel.grid.major = element_blank(),
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)))
+th = theme(aspect.ratio = 6.88/11.49,
+           panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
-           axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.5)),
-           axis.title.y = element_text(size = rel(1.5)),
-           legend.title = element_text(size = rel(1.8)),
-           strip.text.x = element_text(size = rel(1.8)))
+           axis.text.x = element_text(size = 11, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 11, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
+           legend.title = element_text(size = 11),
+           strip.text.x = element_text(size = 11))
 level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
 level_h = geom_hline(yintercept = high/1000, linetype = "dashed", color = "gray50")
-fig10 = g+p+l+lab+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+level_l+level_h
-ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
+fig10 = g+p+l+lab+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+level_l+level_h+annotate("text",label="高位", x = 1997, y = 12, family="HiraKakuPro-W3", size = 4)+annotate("text",label="中位", x = 1997, y = 7.8, family="HiraKakuPro-W3", size = 4)+annotate("text",label="低位", x = 1997, y = 4, family="HiraKakuPro-W3", size = 4)
+# ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig10.png", plot = fig10, 
+       dpi = 400, unit = "cm", width = 11.49, height = 6.88)
 
 
 # check_trend = trend %>% filter(year > 2015)
