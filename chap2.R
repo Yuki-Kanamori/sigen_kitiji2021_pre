@@ -1276,32 +1276,42 @@ summary(lm(biomass/1000000 ~ year2, data = check_trend2))
 srr2 = srr %>% na.omit() %>% mutate(year3 = ifelse(year2 == 1996, 1996, ifelse(year2 == 2018, 2018, NA)))
 
 g = ggplot(srr2, aes(x = biomass/1000000, y = number/1000000, label = year3))
-p = geom_point(size = 5)
+p = geom_point(size = 3)
 l = geom_line(size = 1)
 pa = geom_path()
 lab = labs(x = "雌親魚量（トン）", y = "2歳魚尾数（百万尾）")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.1, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 th = theme(panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
-           axis.text.y = element_text(size = rel(1.8), colour = "black"),
-           axis.title.x = element_text(size = rel(1.5)),
-           axis.title.y = element_text(size = rel(1.5)),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
            legend.title = element_blank(),
-           strip.text.x = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(0.8)),
            legend.position = c(0.1, 0.8),
            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
 # fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 6000))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+geom_label_repel()
 
 # g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 6000))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+geom_text(aes(x = biomass/1000000+1, label = year3), size = rel(2.8), hjust = 2)
 
-fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 5800))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+annotate("text", x = 350, y = 3, label = "1996", size = 6)+annotate("text", x = 5000, y = 5, label = "2018", size = 6)
-
+fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 5800))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+annotate("text", x = 300, y = 4, label = "1996", size = 4)+annotate("text", x = 5000, y = 8, label = "2018", size = 4)
+ggsave(file = "fig15.png", plot = fig15, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
 
 # +geom_text_repel(size = 5)
 # +geom_label_repel()
 # +geom_text(aes(label = year2), data = srr %>% filter(year %in% c(1996, 1999, 2002, 2005, 2008, 2011, 2014, 2017)), nudge_x = -250)
 
-ggsave(file = "fig15.png", plot = fig15, units = "in", width = 11.69, height = 8.27, scale = 0.9)
+# ggsave(file = "fig15.png", plot = fig15, units = "in", width = 11.69, height = 8.27, scale = 0.9)
 
 
 
