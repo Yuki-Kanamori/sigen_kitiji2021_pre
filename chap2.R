@@ -571,7 +571,12 @@ for(i in 1:length(sheets)){
   
   summary(len_num2)
   AC2 = left_join(AC, len_num2, by = "length_cate") %>% mutate(bisu = freq*number)
+  if(length(unique(AC2$length_cate)) < 30){
+    add = data.frame(length_cate = 30, age = rep(0:10), freq = 0, number = 0, bisu = 0)
+    AC2 = rbind(AC2, add)
+  }
   num_ac2 = ddply(AC2, .(length_cate), summarize, total = mean(number))
+  
   
   number_at_age2 = AC2 %>% select(length_cate, age, bisu) %>% tidyr::spread(key = length_cate, value = bisu)
   num_ac2 = num_ac2 %>% tidyr::spread(key = length_cate, value = total) %>% mutate(age = "total")
