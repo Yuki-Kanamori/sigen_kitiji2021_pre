@@ -1,0 +1,2158 @@
+---
+title: "Results for document"
+author: "Yuki Kanamori"
+date: "2021/6/23"
+output: 
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+require(xlsx)
+require(openxlsx)
+require(readxl)
+require(tidyverse)
+require(plyr)
+require(investr)
+require(abind)
+require(gridExtra)
+require(ggrepel)
+require(cowplot)
+require(maps)
+require(mapdata)
+
+dir = "/Users/Yuki/Dropbox/業務/キチジ太平洋北部/SA2021/"
+fileEncoding = "CP932"
+
+# not change
+knitr::opts_chunk$set(echo = TRUE)
+n_year = 2021
+options(warn = -1)
+```
+
+
+```{r pref. catch, echo=F, message=FALSE, results='hide', warning=F}
+### aomori
+ao = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "ao") %>% select(漁法, 数量kg) %>% dplyr::rename( method = 漁法, catch_kg = 数量kg)
+summary(ao)
+ao_sum = ddply(ao, .(method), summarize, sum_temp = sum(catch_kg))
+ao_sum$method
+ao_sum$method2 = c("その他", "その他", "沖底", "小底")
+ao_sum = ao_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### iwate
+iwa = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iwa") %>% select(漁業種名, "合計") %>% dplyr::rename(method = 漁業種名, sum_temp = 合計) %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(sum_temp))
+iwa_sum = iwa
+iwa_sum$method
+# iwa_sum$method2 = c("延縄", "沖底", "延縄", "刺網", "延縄")
+iwa_sum$method2 = c("その他", "延縄", "沖底", "延縄", "刺網")
+iwa_sum = iwa_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### miyagi
+miya = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "miya", startRow = 4)
+miya = miya[, c(1,2,ncol(miya))]
+miya_l = miya %>% filter(魚種コード == "きちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+miya_s = miya %>% filter(魚種コード == "こきちじ") %>% select(漁業種コード, 総計) %>% dplyr::rename(method = 漁業種コード, sum = 総計)
+
+miya2 = left_join(miya_l, miya_s, by = "method")
+miya2[is.na(miya2)] = 0
+miya2 = miya2 %>% mutate(sum_temp = sum.x+sum.y) %>% select(method, sum_temp)
+# miya_sum = miya2 %>% filter(method != "その他漁業種") %>% filter(method != "その他漁業種・全漁法2") %>% filter(method != "沿岸小漁")
+# miya_sum$method
+# miya_sum$method2 = c("沖底", "刺網", "延縄") #沿岸小漁=その他
+# miya_sum = miya_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+miya2$method
+miya2$method2 = c("沖底", "その他", "その他", "延縄") #沿岸小漁=その他
+miya_sum = miya2 %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+
+
+### fukusima
+fuku = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "fuku", startRow = 2) %>% 
+  select(沖合底びき網) %>% 
+  mutate(method = paste0("沖合底びき網")) %>% 
+  dplyr::rename(catch_kg = 沖合底びき網) %>% 
+  na.omit %>% 
+  dplyr::group_by(method) %>% 
+  dplyr::summarize(sum = sum(catch_kg))
+fuku_sum = fuku
+fuku_sum$method
+fuku_sum$method2 = c("沖底")
+fuku_sum = fuku_sum %>% select(-method)
+
+
+### ibaraki
+iba = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iba", startRow = 4)
+iba = iba[13, ] 
+iba = iba %>% mutate(method2 = "沖底")
+iba = iba[, 3:4]
+colnames(iba)[1] = "sum"
+# iba = iba %>% dplyr::rename(method = 漁法) %>% mutate(num = as.numeric(as.character(as.factor(iba$年計))))
+# iba = iba %>% filter(method != "小計") %>% dplyr::group_by(method) %>% dplyr::summarize(sum_temp = sum(num))
+# iba_sum = iba
+# iba_sum$method
+# iba_sum$method2 = c("その他", "延縄", "沖底", "小底", "小底")
+# iba_sum = iba_sum %>% select(-method) %>% dplyr::group_by(method2) %>% dplyr::summarize(sum = sum(sum_temp))
+iba_sum = iba
+
+
+merge = ao_sum %>% dplyr::full_join(iwa_sum, by = "method2") %>% dplyr::full_join(miya_sum, by = "method2") %>% dplyr::full_join(fuku_sum, by = "method2") %>% dplyr::full_join(iba_sum, by = "method2")
+colnames(merge) = c("漁業種", "青森", "岩手", "宮城", "福島", "茨城")
+merge[is.na(merge)] = 0
+
+total_catch_pref = merge %>% gather(key = pref, value = catch, 2:ncol(merge)) %>% dplyr::summarize(total = sum(catch)/1000)
+
+
+# -------------------------------------------------------------------------
+# 2-4  資源量計算とABCの算定
+#      (引き継ぎ資料の2-4部分)
+# -------------------------------------------------------------------------
+
+# step 1; catch trend -----------------------------------------------------
+catch_old = read.csv(paste0(dir, "catchdata_old.csv"), fileEncoding = fileEncoding) %>% na.omit()
+catch_old = catch_old[, c(1, 3:5)]
+catch_old = catch_old %>% tidyr::gather(key = method, value = sum, 2:4) %>% dplyr::rename(year = 年)
+catch_old = catch_old %>% mutate(method2 = ifelse(str_detect(catch_old$method, pattern = "以外"), "沖底・小底以外", catch_old$method)) %>% select(-method) %>% dplyr::rename(method = method2)
+summary(catch_old)
+
+c19 = read.csv(paste0(dir, "catch2019.csv"), fileEncoding = fileEncoding) %>% select(-X)
+
+catch_new = rbind(ao_sum, iwa_sum, miya_sum, fuku_sum, iba_sum) %>% mutate(年 = 2020)
+catch_new = catch_new %>% mutate(method = ifelse(str_detect(catch_new$method2, pattern = "沖底"), "沖底", ifelse(str_detect(catch_new$method2, pattern = "小底"), "小底", "沖底・小底以外"))) %>% select(-method2) %>% dplyr::rename(year = 年) %>% dplyr::rename(catch_kg = sum) %>% mutate(sum = catch_kg/1000)
+summary(catch_new)
+# write.csv(catch_new, "catch2020.csv", fileEncoding = fileEncoding)
+
+colnames(catch_new)
+colnames(catch_old)
+catch = rbind(catch_old, c19 %>% select(-catch_kg), catch_new %>% select(-catch_kg))
+summary(catch)
+catch = catch %>% dplyr::group_by(method, year) %>% dplyr::summarize(catch_t = sum(sum))
+
+unique(catch$method)
+levels(catch$method) 
+catch$method = factor(catch$method, levels = c("沖底・小底以外", "小底", "沖底"))
+
+g = ggplot(catch, aes(x = year, y = catch_t, fill = method))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+lab = labs(x = "年", y = "漁獲量 (トン)", fill = "漁業種")
+# col_catch = c("grey50", "white", "grey0")
+col_catch = c("#FFF100", "white", "grey0")
+c = scale_fill_manual(values = col_catch)
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            legend.text = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.85, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+th = theme(aspect.ratio = 6.88/11.49,
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(0.8)),
+           strip.text.x = element_text(size = rel(0.8)),
+           legend.position = c(0.75, 0.7),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig5 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(1975, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 4000))
+
+catch2 = catch %>% dplyr::group_by(year) %>% dplyr::summarize(total_catch_t = sum(catch_t))
+
+```
+
+```{r fig9, echo=F, warning=F, message=F, results=F}
+# # 3-2  図9; 漁獲物の体長組成  ------------------------------------------
+# set working directory -----------------------------------------------------------
+### aomori
+ao2 = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "ao") %>% select(月, 数量kg) %>% dplyr::rename(catch_kg = 数量kg, month = 月) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+#summary(ao2)
+ao_sum2 = ao2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### iwate
+iwa2 = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iwa") %>% select(-"合計", -"市場名", -"漁業種名", -"規格名") 
+iwa2 = iwa2  %>% tidyr::gather(key = date, value = catch_kg, 1:ncol(iwa2)) %>% mutate(month = as.numeric(str_sub(date, 6, 8))) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+iwa_sum2 = iwa2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### fukusima
+fuku2 = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "fuku", startRow = 2) %>% na.omit()
+colnames(fuku2) = c("month", "catch_kg")
+fuku2 = fuku2 %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12")) 
+fuku_sum2 = fuku2 %>% dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(catch_kg))
+
+### ibaraki
+iba2 = read.xlsx(paste0(dir, "catch_pref.xlsx"), sheet = "iba", startRow = 4)
+iba2 = iba2[-13, -2] 
+iba2 = iba2 %>% mutate(month = rep(1:12)) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12")) 
+iba_sum2 = iba2 %>% na.omit() %>%dplyr::group_by(season) %>% dplyr::summarize(sum_kg = sum(総計))
+
+
+
+
+# (1-B) きちじとこきちじの漁獲量---------------------------------------------------------
+g_miya = read.csv(paste0(dir, "catch_miyagi.csv"), fileEncoding = fileEncoding)
+#summary(g_miya)
+g_miya = g_miya %>% mutate(ymd = as.Date(g_miya$年月日, format = "%Y/%m/%d")) %>% 
+  dplyr::rename(mizuage = 日別水揚量, size = 魚種コード) %>% select(ymd, size, mizuage) %>% 
+  mutate(year = as.numeric(str_sub(ymd, 1, 4)), month = as.numeric(str_sub(ymd, 6, 7)), day = as.numeric(str_sub(ymd, 9, 10))) %>%
+  mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+g_miya2 = ddply(g_miya, .(size, year, month, season), summarize, total = sum(mizuage))
+
+# (1-C) こきちじの体長組成---------------------------------------------------------
+tai_miya = read.csv(paste0(dir, "taityo_miyagi.csv"), fileEncoding = fileEncoding)
+#summary(tai_miya)
+tai_miya = tai_miya %>% filter(銘柄コード == 91) # 別の種や体長組成の算出に不必要なデータが入っている場合があるため，ここで念のためフィルターをかける
+tai_miya = tai_miya %>% dplyr::rename(ymd = 漁獲年月日, start = 開始の階級値, do = 度数) %>% select(ymd, start, do) %>% mutate(year = as.numeric(str_sub(ymd, 1, 4)), month = as.numeric(str_sub(ymd,5, 6)), day = as.numeric(str_sub(ymd, 7, 8))) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+# 度数 = 尾数．つまり，「開始の階級値」サイズの個体が度数分だけあったってこと．
+
+set.seed(1)
+rand = runif(nrow(tai_miya)*100) %>% matrix(ncol = 100)
+
+loop = matrix(NA, ncol = 101, nrow = nrow(tai_miya))
+loop[, 1] = tai_miya$start
+for(i in 1:100){
+  loop[, i+1] = (0.8131*(loop[, 1]+rand[, i])+0.16238)%/%1
+}
+loop = loop[, -1] %>% as.data.frame() %>% mutate(year = tai_miya$year, season = tai_miya$season, month = tai_miya$month, do = tai_miya$do) %>% tidyr::gather(key = times, value = taityo, 1:100) %>% dplyr::rename(number = do)
+loop2 = loop %>% group_by(year, season, times, taityo) %>% dplyr::summarize(count = sum(number))
+summary(loop2)
+round2 = function(x, d=0) {
+  p = 10^d
+  return((x * p * 2 + 1) %/% 2 / p)
+}
+tai_miya2 = loop2 %>% group_by(year, season, taityo) %>% dplyr::summarize(mean = round2(mean(count), 0))
+# round2(7.45, 0)
+
+weight = data.frame(taityo = rep(5:19)) %>% mutate(weight = 0.00000531472*((taityo+0.5)*10)^3.30527)
+tai_miya2 = left_join(tai_miya2, weight, by = "taityo") %>% mutate(total_weight_kg = (mean*weight)/1000)
+#summary(tai_miya2)
+
+# figures
+# g = ggplot(tai_miya2, aes(x = taityo, y = mean), stat = "identity")
+# b = geom_bar(stat = "identity")
+# f = facet_wrap(~ season, ncol = 1, scales = 'free')
+# labs = labs(x = "Length", y = "Numbers", title = "Kokichiji")
+# g+b+f+labs+theme_bw()
+
+
+# (1-D) きちじの体長組成---------------------------------------------------------
+yatyo = read.csv(paste0(dir, "yatyo_miyagi.csv"), fileEncoding = fileEncoding)
+# yatyo = read.xlsx("箱入れキチジ体長.xlsx", sheet = "2019")
+# head(yatyo)
+# summary(yatyo)
+
+yatyo = yatyo %>% dplyr::rename(ymd = 調査年月日, meigara = 銘柄, n_hako = 箱数)
+yatyo = yatyo %>% tidyr::gather(key = no, value = zentyo, 11:ncol(yatyo)) %>% 
+  mutate(year = as.numeric(str_sub(ymd, 1, 4)), month = as.numeric(str_sub(ymd, 6, 7)), gyokaku_kg = n_hako*7, gyokaku_n = meigara*n_hako) %>% 
+  mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"), tag = paste(ymd, meigara, sep = '_')) %>% na.omit()
+yatyo = yatyo %>% mutate(day = ifelse(yatyo$month/1 < 10, as.numeric(str_sub(yatyo$ymd, 8, 9)), as.numeric(str_sub(yatyo$ymd, 9, 10))))
+
+# summary(yatyo)
+
+sokutei_n = yatyo %>% group_by(ymd, meigara) %>% dplyr::summarize(sokutei_n = n())
+# summary(sokutei_n)
+
+yatyo = left_join(yatyo, sokutei_n, by = c("ymd", "meigara")) %>% mutate(yatyo, rate = gyokaku_n/sokutei_n)
+# summary(yatyo)
+
+tag_rate = yatyo %>% select(tag, rate) %>% distinct(.keep_all = T) # tag = paste(ymd, meigara, sep = '_')
+
+set.seed(1)
+rand = runif(nrow(yatyo)*100) %>% matrix(ncol = 100)
+loop = matrix(NA, ncol = 101, nrow = nrow(yatyo))
+loop[, 1] = yatyo$zentyo
+for(i in 1:100){
+  loop[, i+1] = (0.8131*(loop[, 1]+rand[, i])+0.16238)%/%1
+}
+ncol(loop)
+nrow(loop)
+loop = loop[, -1] %>% as.data.frame() %>% mutate(year = yatyo$year, tag = yatyo$tag) %>% gather(key = times, value = taityo, 1:100)
+loop2 = loop %>% group_by(year, tag, times, taityo) %>% dplyr::summarize(count = n())
+# summary(loop2)
+
+loop2 = left_join(loop2, tag_rate, by = "tag") %>% mutate(number = count*rate, month = as.numeric(str_sub(tag, 6, 7))) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"))
+# summary(loop2)
+
+m_sosei = loop2 %>% group_by(year, times, taityo, season) %>% dplyr::summarize(sum = sum(number))
+# summary(m_sosei)
+
+total_sosei = m_sosei %>% group_by(year, taityo, season) %>% dplyr::summarize(total_n = round2(mean(sum), 0))
+# summary(total_sosei)
+
+# figures
+# g = ggplot(total_sosei %>% filter(taityo < 80), aes(x = taityo, y = total_n), stat = "identity")
+# b = geom_bar(stat = "identity")
+# f = facet_wrap(~ season, ncol = 1, scales = 'free')
+# labs = labs(x = "Length", y = "Numbers", title = "Kichiji")
+# g+b+f+labs+theme_bw()
+
+
+
+
+
+# (1-E) ---------------------------------------------------------
+kiti = total_sosei %>% mutate(weight = 0.00000531472*((taityo+0.5)*10)^3.30527) %>% mutate(total_weight_kg = (total_n*weight)/1000, species = 'kiti') %>% select(year, season, taityo, total_n, weight, total_weight_kg, species) %>% dplyr::rename(mean = total_n)
+# head(kiti)
+kokiti = tai_miya2 %>% mutate(species = 'kokiti')
+# head(kokiti)
+miyagi = rbind(kiti, kokiti)
+# summary(miyagi)
+
+sum_miya = miyagi %>% group_by(year, season, species) %>% dplyr::summarize(sum = sum(total_weight_kg))
+total_g_miyagi = g_miya2 %>% mutate(species = ifelse(g_miya2$size == "きちじ", 'kiti', 'kokiti')) %>% group_by(year, season, species) %>% dplyr::summarize(sum = sum(total))
+# head(sum_miya)
+# head(total_g_miyagi)
+rate = left_join(sum_miya, total_g_miyagi, by = c('year', 'season', 'species')) %>% mutate(rate = sum.y/sum.x)
+
+miyagi = left_join(miyagi, rate, by = c('year', 'season', 'species')) 
+miyagi = miyagi %>% mutate(weight2 = mean*rate) %>% mutate(pref = 'Miyagi')
+
+total = miyagi %>% group_by(year, season) %>% dplyr::summarize(total = sum(weight2)) %>% mutate(pref = "miyagi") %>% as.data.frame()
+# head(total)
+
+# fukuiba_mae = 4248.8+1667.1　#fuku+iba
+# fukuiba_usiro = 948.5+16591.9 
+fukuiba_mae = fuku_sum2 %>% filter(season == "1-6") %>% select(sum_kg) + iba_sum2 %>% filter(season == "1-6") %>% select(sum_kg)
+fukuiba_usiro = fuku_sum2 %>% filter(season == "7-12") %>% select(sum_kg) + iba_sum2 %>% filter(season == "7-12") %>% select(sum_kg)
+
+rate_fukuiba_mae = (total %>% filter(season == '1-6') %>% select(total) + fukuiba_mae)/total %>% filter(season == '1-6') %>% select(total)
+rate_fukuiba_usiro = (total %>% filter(season == '7-12') %>% select(total) + fukuiba_usiro)/total %>% filter(season == '7-12') %>% select(total)
+
+head(miyagi)
+fukuiba = miyagi %>% group_by(year, season, taityo) %>% dplyr::summarize(sum = sum(weight2))
+fukuiba = fukuiba %>% mutate(rate = ifelse(fukuiba$season == '1-6', as.numeric(rate_fukuiba_mae), as.numeric(rate_fukuiba_usiro))) %>% mutate(weight2 = sum*rate, pref = 'South of Miyagi')
+# head(fukuiba)
+# head(miyagi)
+
+fig = rbind(miyagi %>% select(year, season, taityo, weight2, pref), fukuiba %>% select(year, season, taityo, weight2, pref))
+
+# figures
+# g = ggplot(fig %>% filter(taityo < 50), aes(x = taityo, y = weight2), stat = "identity")
+# b = geom_bar(stat = "identity")
+# f = facet_wrap(~ pref, ncol = 1, scales = 'free')
+# labs = labs(x = "Length", y = "Numbers", title = "Length composition in 2019")
+# g+b+f+labs+theme_bw()
+
+
+# (3) 八戸 ------------------------------------------------------------------
+tai_hati = read.csv(paste0(dir, "hati_sokutei.csv"), fileEncoding = fileEncoding)
+
+# ファイルの規格コードが変なので，修正
+code_data = read.csv(paste0(dir, "hati_sokutei2019.csv"), fileEncoding = fileEncoding)
+(code = data.frame(規格名 = unique(code_data$規格名)))
+code$CD = c(NA, 13, 27, 28, 7, 8, 7, 7, 8, 31, 68, 31, 8, NA, 7, 8, NA, 27)
+
+(code2 = data.frame(規格名 = unique(tai_hati$規格名)))
+# tai_hati = full_join(tai_hati, code, by = "規格名")
+tai_hati = left_join(tai_hati, code, by = "規格名")
+# summary(tai_hati)
+tai_hati[is.na(tai_hati)] = 0
+# colnames(tai_hati)
+
+tai_hati = tai_hati %>% select(年, 月, 漁法名, CD, 入数, 月間数量.Ｋｇ.)
+colnames(tai_hati) = c("year", "month", "fisheries", "kikaku", "irisu", "kg")
+tai_hati$irisu = tai_hati$irisu%/%10
+
+tai_hati = tai_hati %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"), iri_bisu = ifelse(kikaku == 13, 'P', ifelse(kikaku == 7, 'S', as.numeric(str_sub(irisu, -2, -1)))))
+
+# unique(tai_hati$iri_bisu)
+# summary(tai_hati)
+
+a = 473.69
+b = -0.2583
+cv = 0.0448
+
+# PとS以外
+kg = tai_hati %>% group_by(year, season, iri_bisu) %>% dplyr::summarize(sum = sum(kg)) %>% filter(iri_bisu != "S") %>% filter(iri_bisu != "P") %>% mutate(n_iri_bisu = as.numeric(iri_bisu))
+# summary(kg)
+
+kg = kg %>% filter(n_iri_bisu > 1) %>% na.omit() %>% mutate(hako = sum/7, gyokaku_bisu = hako*n_iri_bisu)
+kg = kg %>% mutate(meanBL = a*n_iri_bisu^b) %>% mutate(SD = meanBL*cv)
+# unique(kg$iri_bisu)
+# summary(kg$n_iri_bisu)
+# summary(kg)
+
+pn = NULL
+length = c(seq(50, 350, 10), 1000)
+for(i in 1:length(length)){
+  #i = 21
+  temp = matrix(NA, ncol = 2, nrow = length(kg$n_iri_bisu))
+  for(j in 1:length(kg$n_iri_bisu)){
+    temp[j, 1] = pnorm(length[i], kg$meanBL[j], kg$SD[j])
+    temp[j, 2] = pnorm(length[i+1], kg$meanBL[j], kg$SD[j])
+  }
+  temp2 = (temp[,2]-temp[,1]) %>% data.frame %>% mutate(iri_bisu = kg$n_iri_bisu, gyokaku_bisu = kg$gyokaku_bisu, season = kg$season, BL = paste0(length[i+1]))
+  pn = rbind(pn, temp2)
+}
+# summary(pn)
+
+# colnames(pn)
+colnames(pn)[1] = "prob"
+pn$number = pn$prob*pn$gyokaku_bisu
+# summary(pn)
+
+pn2 = ddply(pn, .(season, BL), summarize, total_number = sum(number))
+# summary(pn2)
+pn2$taityo = as.numeric(pn2$BL)/10 # with message about getting NA
+
+
+
+# pとs
+ps = read.csv(paste0(dir, "seimitu.csv"), fileEncoding = fileEncoding) %>% mutate(season = ifelse(between(month, 1, 6), "1-6", "7-12"), tag = paste(taityo, meigara, month, total_number_in_box, sep = "_"), tag_box = paste(month, total_number_in_box,meigara,  sep = "_"), taityo2 = taityo%/%10, meigara = ifelse(meigara == "SS", "P", "S"))
+
+# unique(ps$tag_box)
+
+comp_ps = ps %>% dplyr::group_by(season, taityo2, meigara) %>% dplyr::summarize(count = n())
+n_total = ddply(comp_ps, .(season, meigara), summarize, n_total = sum(count))
+n_total = n_total %>% mutate(n_box = c(3, 2)) %>% mutate(n_iri_bisu = n_total/n_box)
+
+stat_ps = ddply(ps, .(season, meigara), summarize, meanBL = mean(taityo), SD = sd(taityo))
+
+comp_ps = left_join(comp_ps, n_total, by = c("season", "meigara"))
+comp_ps = comp_ps %>% mutate(freq = count/n_total) %>% arrange(taityo2)
+
+# freq = comp_ps$freq
+# length = c(seq(50, 350, 10), 1000)
+# data = comp_ps %>% select(season, taityo2, freq) %>% mutate(taityo = taityo2*10) 
+# data = full_join(data, data_frame(taityo = c(seq(50, 350, 10), 1000))) %>% arrange()
+
+
+# 
+# temp = matrix(0, ncol = 1, nrow = (length(unique(comp_ps$taityo2)))*2*2+1)
+# temp = NULL
+# for(i in 1:length(unique(comp_ps$season))){
+#   i = 1
+#   s = unique(comp_ps$season)[i]
+#   data = comp_ps %>% filter(season == s)
+#   for(j in 1:length(unique(data$meigara))){
+#     j = 1
+#     d = unique(data$meigara)[j]
+#     data2 = data %>% filter(meigara == d)
+#     for(k in 1:nrow(data)){
+#       temp[k] = data2$freq[k] + temp[k-1]
+#     }
+#   }
+# }
+
+data_p = comp_ps %>% filter(meigara == "P") %>% arrange(taityo2)
+temp_p = matrix(0, ncol = 1, nrow = nrow(data_p))
+for(k in 2:nrow(data_p)){
+  # k = 2
+  temp_p[k] = data_p$freq[k] + temp_p[k-1]
+}
+
+data_s = comp_ps %>% filter(meigara == "S") %>% arrange(taityo2)
+temp_s = matrix(0, ncol = 1, nrow = nrow(data_s))
+for(k in 2:nrow(data_s)){
+  # k = 2
+  temp_s[k] = data_s$freq[k] + temp_s[k-1]
+}
+
+(stat_ps = ddply(ps, .(season, meigara), summarize, meanBL = mean(taityo), SD = sd(taityo)))
+# unique(comp_ps$n_iribisu)
+temp1 = data_frame(freq2 = temp_p, taityo2 = data_p$taityo2, meigara = "P", season = "1-6")
+temp2 = data_frame(freq2 = temp_s, taityo2 = data_s$taityo2, meigara = "S", season = "1-6")
+temp = rbind(temp1, temp2)
+comp_ps = full_join(comp_ps, temp, by = c("taityo2", "season", "meigara")) %>% mutate(n_catch = n_iri_bisu*n_box) %>% mutate(total_number = freq2*n_catch)
+
+# head(comp_ps)
+# head(pn2)
+
+sokutei = data_frame(season = comp_ps$season, taityo = comp_ps$taityo2*10, total_number = comp_ps$total_number) %>% mutate(BL = taityo*10)
+
+all_ao = rbind(pn2, sokutei)
+
+# figures
+# g = ggplot(all_ao %>% na.omit() %>% filter(taityo < 50), aes(x = taityo, y = total_number), stat = "identity")
+# b = geom_bar(stat = "identity")
+# f = facet_wrap(~ season, ncol = 1, scales = 'free')
+# labs = labs(x = "Length", y = "Number", title = "Hachinohe")
+# g+b+f+labs+theme_bw()
+
+
+# 引き延ばし
+ao = all_ao %>% filter(taityo < 100) %>% mutate(weight = 0.00001867*(taityo*10)^3.068) %>% mutate(biomass = weight*total_number)
+total_ao = ddply(ao, .(season), summarize, total = sum(biomass)/1000)
+
+(ddply(tai_hati, .(season), summarize, sum = sum(kg)))
+
+# catch_mae = 58551+108677 #aomori+iwate?
+# catch_usiro = 4105.3+44273.1
+catch_mae = ao_sum2 %>% filter(season == "1-6") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "1-6") %>% select(sum_kg)
+catch_usiro = ao_sum2 %>% filter(season == "7-12") %>% select(sum_kg) + iwa_sum2 %>% filter(season == "7-12") %>% select(sum_kg)
+
+total_ao = total_ao %>% mutate(catch = ifelse(total_ao$season == "1-6", as.numeric(catch_mae), as.numeric(catch_usiro))) %>% mutate(rate = catch/total)
+# summary(total_ao)
+
+ao = left_join(ao, total_ao, by = "season") %>% mutate(number = rate*total_number)
+
+# summary(ao)
+
+
+# Tohoku area ---------------------------------------------------
+# 宮城以南 = 福島茨城 => 間違いだった．宮城も足す
+# 岩手以北 = 青森岩手（ただし，岩手は漁獲量を使っているだけで，体長データはない）
+# head(fukuiba)
+# head(miyagi)
+# head(ao)
+# summary(ao)
+# summary(fukuiba)
+# summary(miyagi)
+
+# miya1 = ddply(tai_miya2, .(taityo), summarize, total_number = sum(mean))
+# miya2 = ddply(total_sosei, .(taityo), summarize, total_number = sum(total_n))
+# aomori = ddply(pn2 %>% filter(taityo < 100), .(taityo), summarize, total_number = sum(total_number))
+# tohoku = rbind(miya1, miya2) %>% mutate(area = "宮城県以南")
+# tohoku = rbind(tohoku, aomori %>% mutate(area = "岩手県以北"))
+
+# fukuiba2 = ddply(fukuiba, .(taityo), summarize, total_number = sum(sum))
+fig2 = ddply(fig, .(taityo), summarize, total_number = sum(weight2))
+ao2 = ddply(ao, .(taityo), summarize, total_number = sum(total_number))
+# miyagi2 = ddply(miyagi %>% filter(pref == "Miyagi"), .(tayto), total_number = sum(sum))
+
+# tohoku = rbind(fukuiba2 %>% mutate(area = "宮城県以南"), ao2 %>% mutate(area = "岩手県以北"))
+tohoku = rbind(fig2 %>% mutate(area = "宮城県以南"), ao2 %>% mutate(area = "岩手県以北"))
+
+tohoku = ddply(tohoku, .(area, taityo), summarize, total_number = sum(total_number))
+
+# unique(tohoku$area)
+# levels(tohoku$area) 
+tohoku$area = factor(tohoku$area, levels = c("岩手県以北", "宮城県以南"))
+# summary(tohoku)
+
+g = ggplot(tohoku %>% filter(taityo < 50), aes(x = taityo, y = total_number/10000, fill = area))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+lab = labs(x = "体長（cm）", y = "漁獲尾数 (万尾)", fill = "")
+col_catch = c("white", "grey0")
+c = scale_fill_manual(values = col_catch)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.85, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig9 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(2, 36, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 8))
+```
+
+```{r okisoko, echo=F, warning=F, message=F, results=F}
+# -------------------------------------------------------------------------
+# 2-3  漁獲量まとめ
+#      (引き継ぎ資料の2-3部分)
+# -------------------------------------------------------------------------
+
+# step 1; summary ---------------------------------------------------------
+okisoko = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2020")
+summary(okisoko$魚種名)
+colnames(okisoko)
+summary(okisoko)
+
+okisoko = okisoko %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+  mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
+
+head(okisoko)
+colnames(okisoko)
+
+catch_t1 = okisoko %>% dplyr::group_by(pref, method, area) %>% dplyr::summarize(sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum_kg)
+#catch_t1 = ddply(okisoko, .(pref, method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = area, value = sum)
+catch_t1[is.na(catch_t1)] = 0
+
+catch_t2 = ddply(okisoko, .(area), summarize, sum_kg = sum(catch))
+catch_t2[is.na(catch_t2)] = 0
+
+catch_t3 = ddply(okisoko, .(method, area), summarize, sum_kg = sum(catch)) %>% tidyr::spread(key = method, value = sum_kg)
+catch_t3[is.na(catch_t3)] = 0
+
+effort_t1 = ddply(okisoko, .(method, area), summarize, sum= sum(effort)) %>% tidyr::spread(key = method, value = sum)
+effort_t1[is.na(effort_t1)] = 0
+
+effort_t2 = ddply(okisoko, .(pref, method, area), summarize, sum = sum(effort)) %>% tidyr::spread(key = area, value = sum)
+effort_t2[is.na(effort_t2)] = 0
+
+# effort_t2$pref = factor(effort_t2$pref, levels = c("青森", "岩手", "宮城", "福島", "茨城"))
+
+# step 2; effort trend ----------------------------------------------------
+# ~2018まで
+eff_old = read.csv(paste0(dir, "effortdata_old.csv"), fileEncoding = fileEncoding)
+eff_old = ddply(eff_old, .(method, year), summarize, sum = sum(effort))
+
+#2019
+oki2019 = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2019")
+oki2019 = oki2019 %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+  mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% dplyr::rename(area = 漁区名, catch = 漁獲量の合計, effort = 網数の合計) %>% mutate(cpue = catch/effort)
+
+eff19 = ddply(oki2019, .(method), summarize, sum = sum(effort))
+eff19$year = 2019
+
+#2020; 上の方で使っている
+eff = ddply(okisoko, .(method), summarize, sum = sum(effort))
+eff$year = 2020
+
+eff = rbind(eff_old, eff19, eff)
+eff = eff %>% mutate(label = ifelse(eff$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(eff$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き")))
+
+unique(eff$label)
+levels(eff$label)
+eff$label = factor(eff$label, levels = c("尻屋崎〜岩手沖のかけ廻し", "岩手沖の2そう曳き", "金華山~房総のトロール"))
+
+g = ggplot(eff, aes(x = year, y = sum/1000, shape = label, linetype = label, fill = label))
+p = geom_point(size = 3)
+l = geom_line(size = 1)
+lab = labs(x = "年", y = "有漁網数 (千)", shape = "漁業種")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            legend.text = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.8, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(0.8)),
+           strip.text.x = element_text(size = rel(0.8)),
+           legend.position = c(0.755, 0.763),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig6 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0, 0.5), breaks=seq(1972, 2020, by = 2))+scale_y_continuous(expand = c(0,0),limits = c(0, 30))+scale_linetype_manual(values = c("dotted", "solid", "dotted"),)+ guides(linetype=FALSE, fill = FALSE)+scale_shape_manual(values = c(22, 17, 18))+scale_fill_manual(values = c('white','black','black'))+scale_size_manual(values = c(3,3,4))
+
+
+
+# step 3; CPUE trend ----------------------------------------------------------
+# -2018
+gyo_old = read.csv(paste0(dir, "okisoko_old.csv"), fileEncoding = fileEncoding)
+unique(gyo_old$method)
+
+# 2019-
+sheets = excel_sheets(paste0(dir, "okisoko_after2019.xlsx")) #シート名の取得
+cpue = NULL
+for(i in 1:length(sheets)){
+  data = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = sheets[i])
+  data2 = data %>% mutate(method = ifelse(漁法 == 102, "2そう曳き", ifelse(漁法 == 103, "トロール", "かけ廻し"))) %>%
+    mutate(pref = ifelse(県コード == 13, "青森", ifelse(県コード == 14, "岩手", ifelse(県コード == 15, "宮城", ifelse(県コード == 18, "茨城", "福島"))))) %>% select(漁区名, method, pref, 漁獲量の合計, 網数の合計) %>% filter(漁区名 != "襟裳西")
+  
+  temp_cpue = data2 %>% group_by(method) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計)) %>% mutate(year = as.numeric(paste0(sheets[i])))
+  cpue = rbind(cpue, temp_cpue)
+}
+
+cpue2 = rbind(gyo_old, cpue) %>% mutate(cpue = catch/effort)
+mean_cpue = ddply(cpue2, .(method), summarize, m_cpue = mean(cpue))
+cpue2 = left_join(cpue2, mean_cpue, by = "method") %>% mutate(cpue2 = cpue/m_cpue) %>% mutate(bunsi = catch*cpue2)
+
+y_cpue = ddply(cpue2, .(year), summarize, bunsi = sum(bunsi))
+y_catch = ddply(cpue2, .(year), summarize, total_catch = sum(catch))
+w_cpue = left_join(y_cpue, y_catch, by = "year") %>% mutate(weighted_cpue = bunsi/total_catch)
+
+# cpue2 = cpue2 %>% mutate(label = ifelse(cpue2$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(cpue2$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き")))
+cpue2$label = ifelse(cpue2$method == "かけ廻し", "尻屋崎〜岩手沖のかけ廻し", ifelse(cpue2$method == "トロール", "金華山~房総のトロール", "岩手沖の2そう曳き"))
+unique(cpue2$label)
+levels(cpue2$label)
+cpue2$label = factor(cpue2$label, levels = c("尻屋崎〜岩手沖のかけ廻し", "岩手沖の2そう曳き", "金華山~房総のトロール"))
+
+
+table4 = data2  %>% group_by(method,漁区名) %>% dplyr::summarize(effort = sum(網数の合計), catch = sum(漁獲量の合計))
+table4$cpue = table4$catch/table4$effort
+# table4
+# write.csv(table4, "table4.csv", fileEncoding = )
+
+
+### かけ廻し
+g = ggplot(cpue2 %>% filter(method == "かけ廻し"), aes(x = year, y = cpue, shape = label, fill = label))
+p = geom_point(shape = 22, size = 4, fill = "white")
+l = geom_line(linetype = "dotted", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+kake = g+l+p+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 60))
+
+### 2そう
+g = ggplot(cpue2 %>% filter(method == "2そう曳き"), aes(x = year, y = cpue, shape = label))
+p = geom_point(shape = 17, size = 5)
+l = geom_line(linetype = "solid", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+niso = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand = c(0, 0.5))+scale_y_continuous(limits = c(0, 300))
+
+### トロール
+g = ggplot(cpue2 %>% filter(method == "トロール"), aes(x = year, y = cpue, shape = label))
+p = geom_point(shape = 18, size = 6)
+l = geom_line(linetype = "dotted", size = 1)
+lab = labs(x = "年", y = "CPUE  (kg/網)", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_blank(),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+tra = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1972, 2020, by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 120))
+
+### weighted CPUE
+w_cpue$label = "太平洋北部"
+g = ggplot(w_cpue, aes(x = year, y = weighted_cpue))
+p = geom_point(shape = 20, size = 6)
+l = geom_line(size = 0.6, linetype = "solid")
+lab = labs(x = "年", y = "重み付CPUE \n（相対値）", shape = "")
+f = facet_wrap(~ label, ncol = 1)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           # axis.title.x = element_text(size = rel(2)),
+           # axis.title.y = element_text(size = rel(2)),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+w = g+p+l+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(min(w_cpue$year), max(w_cpue$year), by = 2), expand=c(0, 0.5))+scale_y_continuous(limits = c(0, 3))
+
+# fig8 = grid.arrange(kake, niso, tra, w, ncol = 1)
+
+```
+
+```{r get biomass and N, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
+# -2018
+olddata = read.csv(paste0(dir, "olddata_trawl.csv")) 
+
+# combine the catch data from the trawl surveys
+old_trawl = olddata %>% filter(data == 'trawl') %>% gather(key = year_tag, value = number, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data)
+summary(old_trawl)
+
+# 2019-
+sheets = excel_sheets(paste0(dir, "ALdata.xlsx")) #シート名の取得
+number_at_age_table = NULL
+mean_length_weight_at_age_table = NULL
+for(i in 1:length(sheets)){
+  df = read.xlsx(paste0(dir, "ALdata.xlsx"), sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
+  summary(df)
+  mode(df$age)
+  
+  # step 1; remove the data that age is 10+, 10++, and ? --------------------
+  df = df %>% mutate(length_mm = SL, age_num = as.numeric(as.character(age))) #10+, 10++, and ? turned NA
+  summary(df)
+  
+  #ALK
+  df2 = na.omit(df)
+  summary(df2)
+
+  # step 2; fit the von Bertalanffy growth curve and estimate params --------
+  # Lt = L_max*(1-e^(-K(t-t0)))
+  mode(df2$age_num)
+  mode(df2$length_mm)
+
+    #Lmax = 320
+  fit = nls(length_mm ~ 320*(1-exp(-K*((age_num+0.5) - t0))), data = df2, start = c(K = 0.01, t0 = -3), trace = TRUE)
+  fit2 = summary(fit)
+  
+  # step 2; make the tables of number at age (NAA)
+  # !!note!!  use 10+ and 10++
+  head(df)
+  df3 = df %>% select(SL, age) %>% dplyr::rename(length_mm = SL)
+  summary(df3)
+  head(df3)
+  unique(df3$age)
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)))
+  
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)),
+                       age2 = ifelse(df3$age == "10+", 10, ifelse(df3$age > 9, 10, as.character(df3$age)))) %>% filter(fumei != 100) %>% select(-fumei) %>% mutate(count = 1)
+  unique(df3$age2)
+  df3$age2 = as.numeric(df3$age2)
+  summary(df3$age2)
+  df3$age3 = ifelse(df3$age2 > 10, 10, df3$age2)
+  df3 = na.omit(df3)
+  summary(df3)
+  naa = ddply(df3, .(length_mm, age3), summarize, number = sum(count))
+  
+  length_mm = rep(seq(min(df3$length_mm), max(df3$length_mm)), length(unique(df3$age3))+1) #1761rows
+  age_num = rep(0:max(df3$age3), each = length(unique(length_mm)))
+  tag = data_frame(length_mm = length_mm, age_num = age_num)
+  tag = tag %>% mutate(length_cate = ifelse(length_mm < 100, str_sub(tag$length_mm, 1, 1), str_sub(tag$length_mm, 1, 2)))
+  
+  head(naa)
+  head(tag)
+  
+  naa = naa %>% dplyr::rename(age = age3)
+  tag = tag %>% dplyr::rename(age = age_num)
+  
+  naa2 = merge(naa, tag, by = c("length_mm", "age"), all = T)
+  naa2$number = ifelse(is.na(naa2$number), 0, naa2$number)
+  summary(naa2)
+  NAA = ddply(naa2, .(age, length_cate), summarize, number = sum(number))
+  NAA$length_cate = as.numeric(NAA$length_cate)
+  summary(NAA)
+  
+  # add the data that NAA does not have
+  add = NAA %>% filter(length_cate < min(NAA$length_cate)*2-1)
+  add = add %>% mutate(length_cate = rep(1:(min(add$length_cate)-1)), number = 0)
+  NAA = rbind(add, NAA)
+  NAA = NAA %>% arrange(length_cate, age) 
+  sum = ddply(NAA, .(length_cate), summarize, sum = sum(number))
+  
+  NAA2 = NAA %>% tidyr::spread(key = length_cate, value = number)
+  sum2 = sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  number_at_age = rbind(NAA2, sum2)
+  #write.csv(number_at_age, "number_at_age.csv", fileEncoding = fileEncoding)
+  
+  # step 3; make the tables of age composition (AC)
+  AC = left_join(NAA, sum, by = "length_cate") %>% mutate(freq = ifelse(sum > 0, number/sum, 0))
+  AC = AC %>% select(length_cate, age, freq)
+  a_sum = ddply(AC, .(length_cate), summarize, sum = sum(freq))
+  
+  age_composition = AC %>% tidyr::spread(key = length_cate, value = freq)
+  a_sum2 = a_sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  age_composition = rbind(age_composition, a_sum2)
+  #write.csv(age_composition, "number_at_age_freq.csv", fileEncoding = fileEncoding)
+  # freq at age?
+  
+  
+  # step 4; calculate the number at age ---------------------------------------------
+  # get survey data and make dataframe
+  len_num = read.csv(paste0(dir, "survey_N_at_length.csv"), fileEncoding = fileEncoding) %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == sheets[i]) %>% select(-year)
+  len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+  len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit()
+  summary(len_num)
+  # len_num2 = ddply(NatL, .(age_j), summarize, number = sum(number))
+  len_num2 = len_num %>% dplyr::group_by(age_j) %>% dplyr::summarize(number = sum(number)) %>% mutate(length_cate = as.numeric(str_sub(age_j, 3, 4))) %>% select(-age_j)
+  
+  summary(len_num2)
+  AC2 = left_join(AC, len_num2, by = "length_cate") %>% mutate(bisu = freq*number)
+  if(length(unique(AC2$length_cate)) < 30){
+    add = data.frame(length_cate = 30, age = rep(0:10), freq = 0, number = 0, bisu = 0)
+    AC2 = rbind(AC2, add)
+  }
+  num_ac2 = ddply(AC2, .(length_cate), summarize, total = mean(number))
+  
+  number_at_age2 = AC2 %>% select(length_cate, age, bisu) %>% tidyr::spread(key = length_cate, value = bisu)
+  num_ac2 = num_ac2 %>% tidyr::spread(key = length_cate, value = total) %>% mutate(age = "total")
+  
+  number_at_age2 = rbind(number_at_age2, num_ac2)
+  # x = number_at_age2[1:(nrow(number_at_age2)-1), 2:ncol(number_at_age2)]
+  # apply(x, 2, sum) - number_at_age2[nrow(number_at_age2), 2:ncol(number_at_age2)]
+  
+  number_at_age2[2,5] = number_at_age2[nrow(number_at_age2), 5]
+  # write.csv(number_at_age2, "number_at_age_exp.csv")
+  
+  
+  # step 5; calculate the weight at age, or at length -----------------------
+  number_at_age3 = number_at_age2[-nrow(number_at_age2), ] %>% gather(key = length, value = number, 2:ncol(number_at_age2))
+  number_at_age3 = number_at_age2 %>% gather(key = length, value = number, 2:ncol(number_at_age2)) %>% filter(age != "total")
+  summary(number_at_age3)
+  mode(number_at_age3$age)
+  length = number_at_age3 %>% mutate(sum_length = (as.numeric(as.character(as.factor(length))) + 0.5)*number)
+  
+  s_length_age = ddply(length, .(age), summarize, sum_l = sum(sum_length))
+  s_number_age = ddply(length, .(age), summarize, sum_n = sum(number))
+  
+  mean_length_weight_at_age = left_join(s_length_age, s_number_age, by = "age") %>% mutate(mean_cm = sum_l/sum_n) %>% select(age, mean_cm) %>% mutate(mean_mm = mean_cm*10) %>% mutate(weight = (1.86739*10^(-5))*(mean_mm^3.06825547)) 
+  # write.csv(mean_length_weight_at_age, "mean_length_weight_at_age.csv")
+  
+  #output
+  mean_length_weight_at_age$year = as.numeric(paste0(sheets[i]))
+  number_at_age2$year = as.numeric(paste0(sheets[i]))
+  # if(i = max(sheets)){
+  #   print(mean_length_weight_at_age)
+  #   print(number_at_age2)
+  # }
+  
+  mean_length_weight_at_age_table = rbind(mean_length_weight_at_age_table, mean_length_weight_at_age)
+  number_at_age_table = rbind(number_at_age_table, number_at_age2)
+}
+
+temp = NULL
+for(i in min(number_at_age_table$year):max(number_at_age_table$year)){
+  naa = number_at_age_table %>% filter(year == i)
+  # naa = number_at_age_table %>% filter(year == 2019)
+  # naa = number_at_age_table %>% filter(year == 2020)
+  naa = naa[1:(nrow(naa)-1), 3:ncol(naa)]
+  naa = apply(naa, 1, sum)
+  naa = naa %>% data.frame() %>% mutate(age = 0:10) %>% filter(age != 0)
+  colnames(naa) = c('number', 'age')
+  naa$year = as.numeric(paste0(i))
+  temp = rbind(temp, naa)
+}
+trawl = rbind(old_trawl, temp)
+summary(trawl)
+
+
+# combine the length data
+old_length = olddata %>% filter(data == 'length') %>% gather(key = year_tag, value = mean_mm, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data)
+summary(old_length)
+
+temp_length = NULL
+for(i in 1:length(sheets)){
+  length = mean_length_weight_at_age_table %>% filter(year == sheets[i]) %>% select(age, mean_mm) %>% mutate(age = as.numeric(age), year = as.numeric(paste0(sheets[i]))) %>% filter(age > 1)
+  length2 = rbind(length[2:nrow(length),], length[1, ]) #ageが数値なので10->2->3...となっているのを直す
+  temp_length = rbind(temp_length, length2)
+}
+length = rbind(old_length, temp_length)
+summary(length)
+
+
+####### mistake in 2020 assessment (okisoko data was used for catch when estimating biomass) #######
+# combine the catch data from the fishing
+# okisoko
+# new_catchF = NULL
+# for(i in 1:length(sheets)){
+#   okisoko = read.xlsx("okisoko_after2019.xlsx", sheet = sheets[i])
+#   temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+#   new_catchF = rbind(new_catchF, temp)
+# }
+# 
+# old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+# catchF = rbind(old_catchF, new_catchF)
+########################################################################
+# okisoko
+new_catchF = NULL
+for(i in 1:length(sheets)){
+  okisoko = read.xlsx(paste0(dir, "/okisoko_after2019.xlsx"), sheet = sheets[i])
+  temp = data.frame(catch = sum(okisoko$漁獲量の合計)/1000, year = as.numeric(paste0(sheets[i])))
+  new_catchF = rbind(new_catchF, temp)
+}
+
+old_catchF = olddata %>% filter(data == 'catch_fisheries') %>% gather(key = year_tag, value = catch, 2:(ncol(olddata)-1)) %>% mutate(year = as.numeric(str_sub(year_tag, 2, 5))) %>% select(-year_tag, -data,-age)
+okisoko_all = rbind(old_catchF, new_catchF) #資源評価には使わないが，これはこれで必要なのでオブジェクト名を変えて残した
+
+
+
+# catch data from prefectures
+total_catch_pref_old = read.csv(paste0(dir, "pref_catch_old.csv"), fileEncoding = fileEncoding)
+total_catch_pref_old = total_catch_pref_old %>% gather(key = year, value = catch) %>% mutate(year = as.numeric(str_sub(year, 2, 5)))
+total_catch_pref = data.frame(year = 2020, catch = total_catch_pref)
+colnames(total_catch_pref) = c("year", "catch")
+catchF = rbind(total_catch_pref_old, total_catch_pref) #catchFは県からのデータを使う
+
+
+
+
+### survival rate at age
+survival = NULL
+for(i in min(trawl$year):(max(trawl$year)-1)){
+  # i = min(trawl$year)
+  data_lastyr = trawl %>% filter(year == i)
+  data_thisyr = trawl %>% filter(year == (i+1))
+  data = left_join(data_lastyr, data_thisyr, by = 'age') %>% arrange(age)
+  surv = matrix(NA, ncol = 1, nrow = 9)
+  
+  if(i < 2006){
+    for(j in 2:5){
+      if(j < 5){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = data$number.y[(j)]/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  
+  if(i == 2006){
+    for(j in 2:5){
+      if(j < 5){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = (data$number.y[(j)]+data$number.y[(j+1)]+data$number.y[(j+2)]+data$number.y[(j+3)]+data$number.y[(j+4)]+data$number.y[(j+5)])/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  
+  if(i > 2006){
+    for(j in 2:10){
+      if(j < 10){
+        surv[(j-1), 1] = data$number.y[(j)]/data$number.x[(j-1)]
+      }else{
+        surv[(j-1), 1] = data$number.y[(j)]/(data$number.x[j]+data$number.x[j-1])
+      }
+    }
+  }
+  survival = rbind(survival, surv)
+}
+survival = data.frame(surv = survival, year = rep((min(trawl$year)+1):(max(trawl$year)), each = 9), age = rep(2:10))
+
+
+### selectivity at age
+a = 1524.581
+b = 0.082366
+c = 0.738107
+
+q = NULL
+for(i in min(length$year):max(length$year)){
+  # i = max(length$year)-1
+  data = length %>% filter(year == i) %>% arrange(age)
+  temp_q = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    temp_q[j, 1] = c/{1+a*exp(-b*data$mean_mm[j])}
+  }
+  temp_q2 = data.frame(q = temp_q[,1], year = mean(data$year), age = 2:10)
+  q = rbind(q, temp_q2)
+}  
+summary(q)
+
+
+
+### weight at age
+weight = NULL
+for(i in min(length$year):max(length$year)){
+  # i = min(length$year)
+  data = length %>% filter(year == i) %>% arrange(age)
+  temp_w = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    temp_w[j, 1] = (1.86739*10^(-5))*data$mean_mm[j]^(3.06825547)
+  }
+  temp_w2 = data.frame(weight = temp_w[,1], year = mean(data$year), age = 2:10)
+  weight = rbind(weight, temp_w2)
+}
+summary(weight)
+
+
+
+### number at age when selectivity changes at age
+abund_oct_sel = NULL
+for(i in min(trawl$year):max(trawl$year)){
+  # i = min(trawl$year)
+  data_trawl = trawl %>% filter(year == i)
+  data_q = q %>% filter(year == i)
+  data_weight = weight %>% filter(year == i)
+  data = left_join(data_trawl, data_q, by = c("age", "year")) %>% filter(age > 1) %>% arrange(age)
+  data = left_join(data, data_weight,  by = c("age", "year")) %>% filter(age > 1) %>% arrange(age)
+  
+  temp_naa_sel = matrix(NA, ncol = 1, nrow = 9)
+  temp_baa_sel = matrix(NA, ncol = 1, nrow = 9)
+  
+  for(j in 1:9){
+    #j = 9
+    temp_naa_sel[j, 1] = data$number[j]/data$q[j]
+  }
+  
+  for(k in 1:9){
+    temp_baa_sel[k, 1] = temp_naa_sel[k, 1]*data$weight[k]*(0.001)^2
+  }
+  
+  temp_abund_oct = data.frame(number_sel = temp_naa_sel[, 1], biomass_sel = temp_baa_sel[, 1], year = mean(data$year), age = 2:10)
+  abund_oct_sel = rbind(abund_oct_sel, temp_abund_oct)
+}
+
+
+
+### fishing rate, F, Z, and survival rate within 2 month
+M = 2.5/20 #fixed
+abund_jan_forF_notneeded = NULL
+fishing_rate = NULL
+Z = NULL
+survival_2month = NULL
+
+for(i in (min(abund_oct_sel$year)+1):max(abund_oct_sel$year)){
+  # i = min(abund_oct_sel$year)+1
+  data_oct_sel_last = abund_oct_sel %>% filter(year == (i-1)) %>% na.omit()
+  data_catchF_last = catchF %>% filter(year == (i-1))
+  data_catchF_this = catchF %>% filter(year == i)
+  
+  temp_abund_jan = sum(data_oct_sel_last$biomass_sel)*exp(-2/12*0.125)-data_catchF_last$catch/6*exp(-2/12*0.125)
+  temp_fishing_rate = data_catchF_this$catch/temp_abund_jan
+  temp_f = -log(1-(temp_fishing_rate/exp(-M/2)))
+  temp_Z = temp_f + M
+  temp_survival_2month = exp(-temp_Z/6)
+  
+  abund_jan_forF_notneeded_pre = data.frame(biomass = temp_abund_jan, year = i)
+  fishing_rate_pre = data.frame(f = temp_f, year = i)
+  Z_pre = data.frame(z = temp_Z, year = i)
+  survival_2month_pre = data.frame(surv = temp_survival_2month, year = i)
+  
+  abund_jan_forF_notneeded = rbind(abund_jan_forF_notneeded, abund_jan_forF_notneeded_pre)
+  fishing_rate = rbind(fishing_rate, fishing_rate_pre)
+  Z = rbind(Z, Z_pre)
+  survival_2month = rbind(survival_2month, survival_2month_pre)
+}
+
+
+
+### abundance in January
+est = NULL
+for(i in (min(abund_oct_sel$year)+1):(max(abund_oct_sel$year)+1)){
+  # i = max(abund_oct_sel$year) #1995
+  
+  if(i < max(abund_oct_sel$year)+1){
+    data_survival = survival_2month %>% filter(year == i)
+    data_abund_oct_sel = abund_oct_sel %>% filter(year == (i-1)) %>% arrange(age)
+    data_weight = weight %>% filter(year == (i-1)) %>% arrange(age)
+    
+    temp_number = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    temp_biomass = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    
+    for(j in 1:nrow(data_abund_oct_sel)){
+      temp_number[j, 1] = data_survival$surv*data_abund_oct_sel$number_sel[j]
+    }
+    
+    for(k in 1:nrow(data_abund_oct_sel)){
+      temp_biomass[k, 1] = temp_number[k, 1]*data_weight$weight[k]*(0.001)^2
+    }
+    
+    temp_est = data.frame(number = temp_number[, 1], biomass = temp_biomass[, 1], year = i, age = 2:10)
+    est = rbind(est, temp_est)
+  }
+  
+  if(i == max(abund_oct_sel$year)+1){
+    data_survival = survival_2month %>% filter(year == (i-1))
+    data_abund_oct_sel = abund_oct_sel %>% filter(year == (i-1)) %>% arrange(age)
+    data_weight = weight %>% filter(year == (i-1)) %>% arrange(age)
+    
+    temp_number = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    temp_biomass = matrix(NA, ncol = 1, nrow = nrow(data_abund_oct_sel))
+    
+    for(j in 1:nrow(data_abund_oct_sel)){
+      temp_number[j, 1] = data_survival$surv*data_abund_oct_sel$number_sel[j]
+    }
+    
+    for(k in 1:nrow(data_abund_oct_sel)){
+      temp_biomass[k, 1] = temp_number[k, 1]*data_weight$weight[k]*(0.001)^2
+    }
+    
+    temp_est = data.frame(number = temp_number[, 1], biomass = temp_biomass[, 1], year = i, age = 2:10)
+    est = rbind(est, temp_est)
+  }
+}
+
+
+
+### catch rate
+trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass))
+catch_rate = left_join(catchF, trend, by = "year") %>% mutate(rate = catch/total*100)
+fishing_trend = left_join(catch_rate, fishing_rate, by = "year") %>% select(year, rate, f) %>% gather(key = data, value = value, 2:3) %>% mutate(data2 = ifelse(data == "f", "F値", "漁獲割合"))
+
+mean = fishing_trend %>% filter(data == "rate") %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% select(value)
+(mean_fishing_trend = mean(mean$value))
+
+### figures 
+### year trend of stock biomass (fig. 10)
+trend = est %>% select(year, biomass) %>% na.omit() %>% dplyr::group_by(year) %>% dplyr::summarize(total = sum(biomass))
+# %>% mutate(tag = ifelse(year < 2017, "black", "red"))
+# trend$tag = factor(trend$tag, levels = c("black", "red"))
+low = (max(trend$total)-min(trend$total))*1/3+min(trend$total)
+high = max(trend$total)-(max(trend$total)-min(trend$total))*1/3
+
+g = ggplot(trend, aes(x = year, y = total/1000))
+p = geom_point(shape = 20, size = 6)
+l = geom_line(size = 0.6, linetype = "solid")
+lab = labs(x = "年", y = "資源量（千トン）", shape = "")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_text(size = rel(1.8)),
+#            strip.text.x = element_text(size = rel(1.8)))
+th = theme(aspect.ratio = 6.88/11.49,
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
+           legend.title = element_text(size = 11),
+           strip.text.x = element_text(size = 11))
+level_l = geom_hline(yintercept = low/1000, linetype = "dashed", color = "gray50")
+level_h = geom_hline(yintercept = high/1000, linetype = "dashed", color = "gray50")
+fig10 = g+p+l+lab+theme_bw(base_family = "HiraKakuPro-W3")+ theme(legend.position = 'none')+th+theme(legend.position = 'none')+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+level_l+level_h+annotate("text",label="高位", x = 1997, y = 12, family="HiraKakuPro-W3", size = 4)+annotate("text",label="中位", x = 1997, y = 7.8, family="HiraKakuPro-W3", size = 4)+annotate("text",label="低位", x = 1997, y = 4, family="HiraKakuPro-W3", size = 4)
+
+
+### year trend of stock number (fig. 11)
+est = est %>% mutate(age2 = ifelse(age > 4, "5歳以上", "2-4歳"))
+summary(est)
+
+N_trend = est %>% na.omit() %>% dplyr::group_by(year, age2) %>% dplyr::summarize(number = sum(number)/1000)
+
+
+est2 = est
+est2[is.na(est2)] = 0
+est2 = ddply(est2, .(year, age2), summarize, total = sum(number))
+summary(est2)
+
+levels(est2$age2) 
+unique(est$age2)
+est2$age2 = factor(est2$age2, levels = c("5歳以上", "2-4歳"))
+levels(est2$age2)
+
+g = ggplot(est2, aes(x = year, y = total/1000000, fill = age2))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+lab = labs(x = "年", y = "資源尾数（百万尾）", legend = NULL)
+col_age = c("black", "white")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+c = scale_fill_manual(values =  c("black", "white"))
+fig11 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 150))
+
+
+### year trend of fishing (fig. 13)
+# F values
+g = ggplot(fishing_trend %>% filter(data == "f") %>% na.omit(), aes(x = year, y = value))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+lab = labs(x = "", y = "F値")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+trend_f = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0, 0.5))
+
+
+# catch rate
+g = ggplot(fishing_trend %>% filter(data == "rate") %>% na.omit(), aes(x = year, y = value))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+lab = labs(x = "年", y = "漁獲割合（%）")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+trend_catch_rate = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0, 0.5))
+
+# fig12 = grid.arrange(trend_f, trend_catch_rate, ncol = 1)
+
+
+
+```
+
+```{r get srr, echo=F, results=F, warning=F}
+# 南北別漁獲量（調査）
+ns = read.csv(paste0(dir, "trawl_N_at_length_ns.csv"), fileEncoding = fileEncoding)
+summary(ns)
+ns[is.na(ns)] = 0
+ns = ns %>% dplyr::rename(year = 年, area = 南北) %>% gather(key = size_class, value = number, -c("year", "area"))
+ns = ns %>% mutate(size_class = as.numeric(str_sub(ns$size_class, 2,3)))
+summary(ns)
+
+net_eff = data.frame(size = seq(15, 315, 10)) 
+net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size)), size_class = rep(1:nrow(net_eff)))
+summary(net_eff)
+
+ns = left_join(ns, net_eff, by = "size_class")
+summary(ns)
+ns = ns %>% mutate(number_sel = ns$number/ns$q)
+
+# ns2 = ddply(ns, .(year, area), summarize, total = sum(number_sel))
+# ns2 = ns2 %>% spread(key = area, value = total)
+# summary(ns2)
+# ns2$n_rate = ns2$北部/(ns2$北部+ns2$南部)
+
+ns = ns %>% mutate(weight = 1.867*10^(-5)*ns$size^(3.068))
+ns = ns %>% mutate(biomass_sel = ns$number_sel*ns$weight)
+
+ns3 = ddply(ns, .(year, area), summarize, total_number = sum(number_sel), total_biomass = sum(biomass_sel))
+ns4 = left_join(ns3 %>% select(-total_biomass) %>% spread(key = area, value = total_number), ns3 %>% select(-total_number) %>% spread(key = area, value = total_biomass), by = "year") 
+ns4 = ns4 %>% mutate(n_rate_number = ns4$北部.x/(ns4$南部.x+ns4$北部.x), n_rate_biomass = ns4$北部.y/(ns4$南部.y+ns4$北部.y))
+
+ns4_2 = ns4 %>% mutate(year = year + 1)
+
+head(trend)  
+trend_ns = left_join(trend, ns4_2 %>% select(year, n_rate_biomass), by = "year")
+trend_ns = trend_ns %>% mutate(total_n = (trend_ns$total)/1000*trend_ns$n_rate_biomass, total_s = (trend_ns$total)/1000*(1-trend_ns$n_rate_biomass)) %>% select(year, total_n, total_s) %>% gather(key = data, value = biomass_sel, -year) %>% mutate(area = rep(c("北部", "南部"), each = length(unique(trend_ns$year)))) %>% na.omit()
+
+
+
+### fig. A3-3
+levels(trend_ns$area)
+trend_ns$area = factor(trend_ns$area, levels = c("北部", "南部"))
+
+g = ggplot(trend_ns, aes(x = year, y = biomass_sel, fill = area))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black")
+lab = labs(x = "年", y = "資源量（千トン）", legend = NULL)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+c = scale_fill_manual(values =  c("white", "black"))
+fig_a33 = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 15))
+
+
+
+
+# step 6; spawner-recruitment relationship ----------------------
+ns_rec = ddply(ns, .(year, size_class, size), summarize, number = sum(number))
+net_eff = data.frame(size = seq(15, 315, 10)) 
+net_eff = net_eff %>% mutate(q = 0.738/(1+1525*exp(-0.0824*net_eff$size)), size_class = rep(1:nrow(net_eff)))
+ns_rec = left_join(ns_rec, net_eff, by = c("size", "size_class"))
+ns_rec = ns_rec %>% mutate(number_sel = number/q)
+
+survival_2month2 = survival_2month %>% mutate(year = year-1)
+survival_2month2_latest = abind(survival_2month2 %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-2) %>% select(surv), as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% data.frame
+survival_2month2 = abind(survival_2month2, survival_2month2_latest, along = 1) %>% data.frame() %>% dplyr::rename(year = V2)
+
+ns_rec = left_join(ns_rec, survival_2month2, by = "year") %>% mutate(weight = 1.867*10^(-5)*((ns_rec$size_class+0.5)*10)^(3.068))
+
+ns_rec2 = ns_rec %>% mutate(number_sel2 = number_sel*surv, year2 = year+1, maturity = 100/(1+exp(-1.967*((size_class+0.5)-15.309)))) %>% mutate(number_adult = number_sel2*maturity*0.01) %>% mutate(biomass_adult = number_adult*weight)
+
+biomass_female = ddply(ns_rec2, .(year2), summarize, biomass = sum(biomass_adult)/2)
+
+summary(est)
+rec_number = est %>% select(number, year, age) %>% mutate(year2 = year-3) %>% filter(age == 2)
+srr = left_join(biomass_female, rec_number, by = "year2")
+srr = srr %>% mutate(rps = number/(biomass*0.001))
+
+
+
+### figures 
+g = ggplot(srr %>% na.omit(),  aes(x = year2, y = rps))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black", fill = "black")
+lab = labs(x = "年級", y = "RPS（尾/kg）", legend = NULL)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.5)),
+           strip.text.x = element_text(size = rel(1.5)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig13 = g+b+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand= c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 60))
+
+
+
+g = ggplot(srr %>% na.omit(), aes(x = year2, y = number/1000000))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+lab = labs(x = "", y = "2歳魚尾数（百万尾）")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+ko = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))
+
+# g = ggplot(srr %>% na.omit(), aes(x = year2, y = biomass/1000000))
+# p = geom_point(size = 5)
+# l = geom_line(size = 1)
+# lab = labs(x = "年級", y = "雌親魚量（トン）")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.8)),
+#            axis.title.y = element_text(size = rel(1.8)),
+#            legend.title = element_blank(),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.1, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+# oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))
+
+srr1 = srr %>% na.omit()
+low = (max(srr1$biomass)-min(srr1$biomass))*1/3+min(srr1$biomass)
+high = max(srr1$biomass)-(max(srr1$biomass)-min(srr1$biomass))*1/3
+min(srr1$biomass)
+max(srr1$biomass)
+g = ggplot(srr1, aes(x = year2, y = biomass/1000000))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+lab = labs(x = "年級", y = "雌親魚量（トン）")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+level_l = geom_hline(yintercept = low/1000000, linetype = "dashed", color = "gray50")
+level_h = geom_hline(yintercept = high/1000000, linetype = "dashed", color = "gray50")
+oya = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2018, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))+level_h+level_l
+
+# fig14 = grid.arrange(ko, oya, ncol = 1)
+
+# g = ggplot(srr1, aes(x = year2, y = biomass/1000000))
+# p = geom_point(size = 5)
+# l = geom_line(size = 1)
+# lab = labs(x = "年", y = "雌親魚量（トン）")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.1, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+# fig_a41 = g+l+p+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2021, by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, 6000))
+
+
+srr2 = srr %>% na.omit() %>% mutate(year3 = ifelse(year2 == 1996, 1996, ifelse(year2 == 2018, 2018, NA)))
+
+g = ggplot(srr2, aes(x = biomass/1000000, y = number/1000000, label = year3))
+# p = geom_point(size = 5)
+p = geom_point(size = 3)
+l = geom_line(size = 1)
+pa = geom_path()
+lab = labs(x = "雌親魚量（トン）", y = "2歳魚尾数（百万尾）")
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+#            axis.text.y = element_text(size = rel(1.8), colour = "black"),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            legend.title = element_blank(),
+#            strip.text.x = element_text(size = rel(1.8)),
+#            legend.position = c(0.1, 0.8),
+#            legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = 8, angle = 90, colour = "black"),
+           axis.text.y = element_text(size = 8, colour = "black"),
+           axis.title.x = element_text(size = 11),
+           axis.title.y = element_text(size = 11),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(0.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+# fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 6000))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+geom_label_repel()
+
+# g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 6000))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+geom_text(aes(x = biomass/1000000+1, label = year3), size = rel(2.8), hjust = 2)
+
+# fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 5800))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+annotate("text", x = 350, y = 3, label = "1996", size = 6)+annotate("text", x = 5000, y = 5, label = "2018", size = 6)
+
+fig15 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0),limits = c(0, 5800))+scale_y_continuous(expand = c(0,0),limits = c(0, 100))+annotate("text", x = 300, y = 4, label = "1996", size = 4)+annotate("text", x = 5000, y = 8, label = "2018", size = 4)
+```
+
+```{r ABC, echo=F, results=F, warning=F}
+f_current = fishing_rate %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% summarize(mean(f))
+
+# s_pre = Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1))
+# s_current = exp(-s_pre$z)
+# s_current = exp(-(Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(z)))
+s_current = exp(-(M+f_current))
+  
+# s1_pre = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2)
+# s1_current = mean(s1_pre$surv)
+s1_current = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2) %>% summarize(mean(surv))
+
+number_2old_oct_last = trawl %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 1) %>% select(number)/1000 * s1_current
+number_2old_jan_this = number_2old_oct_last*survival_2month %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% select(surv)
+
+number_2old_jan_this_sel = number_2old_jan_this/q %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 2) %>% select(q)
+
+
+####### mistake in 2020 assessment #######
+# weight is from the survey of last Oct. (i.e., the year is different between est and weight)
+# est = estimated abundance in Jan.
+# abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass)
+# abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("year", "age"))
+################################################################################################
+abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))) %>% select(number, biomass, year, age) %>% dplyr::rename(number_est = number, biomass_est = biomass) # get the abundance of this year (2021)
+abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("age")) # get the weight of last year (2020) and join the weight data into the abundance of this year (2021)
+
+next_year = NULL
+for(i in 1:(length(abund_this$age)-1)){
+  #i=1
+  if(i == 1){
+    temp = number_2old_jan_this_sel
+    next_year = rbind(next_year, temp)
+  }
+  if(i < (length(abund_this$age)-1)){
+    temp = abund_this$number_est[i]*s_current$z
+    next_year = rbind(next_year, temp)
+  }
+  if(i == (length(abund_this$age)-1)){
+    temp = (abund_this$number_est[i]+abund_this$number_est[i+1])*s_current$z
+    next_year = rbind(next_year, temp)
+  }
+}
+
+abund_abc = abund_this %>% mutate(next_year_number = next_year$number/1000) %>% mutate(next_year_biomass = next_year_number*weight/1000)
+
+(total_number_next = sum(abund_abc$next_year_number))
+(total_biomass_next = sum(abund_abc$next_year_biomass))
+
+f_limit = 0.058
+f_target = f_limit*0.8
+z_abc = f_limit+M
+
+# ABC
+(abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_next)
+(abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_next)
+
+# re-estimation of ABC in this year
+(total_biomass_this = sum(abund_abc$biomass_est))
+(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+# re-estimation of ABC last year
+(total_biomass_last = sum(est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(biomass)))
+(re_abc_limit_last = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_last)
+(re_abc_target_last = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_last)
+
+
+### fisheries catch, F, and fishing rate in this year (the second table in the document)
+(rate_this = (exp(-0.125/2))*(1-exp(-f_current))*100)
+(catch_this = trend %>% filter(year == 2021) %>% select(total)*(rate_this/100))
+
+### fishing rate and F in ABC (the first table in the document)
+(rate_limit = abc_limit/total_biomass_next*100)
+(rate_target = abc_target/total_biomass_next*100)
+(changeFpercent_limit = (0.058-f_current)*100/f_current)
+(changeFpercent_target = (0.047-f_current)*100/f_current)
+
+table_s1 = data.frame(Target_Limit = c("Target", "Limit"), ABC_ton = c(abc_target, abc_limit), 漁獲割合 = c(rate_target, rate_limit), 現状のF値からの増減 = c(changeFpercent_target$`mean(f)`, changeFpercent_limit$`mean(f)`))
+
+total_catch_pref = merge %>% gather(key = pref, value = tons, 2:ncol(merge)) %>% summarize(sum(tons)/1000)
+table_s2 = data.frame(year = rep((n_year-5):n_year+1), 資源量_ton = abind(trend %>% dplyr::filter(year > (n_year-5)) %>% select(total), total_biomass_next, along = 1), 親魚量 = abind(srr %>% filter(year2 > (n_year-5)) %>% mutate(biomass2 = biomass/1000000) %>% select(biomass2), NA, along = 1), 漁獲量_ton = abind("not_change", "not_change", "not_change", total_catch_pref, catch_this, NA, along = 1), F = abind(fishing_trend %>% filter(year > (n_year-5), data == "f") %>% select(value), f_current, NA, along = 1), 漁獲割合 = abind(fishing_trend %>% filter(year > (n_year-5), data == "rate") %>% select(value), rate_this, NA, along = 1))
+
+colnames(table_s2) = c("年", "資源量_ton", "親魚量_ton", "漁獲量_ton", "F", "漁獲割合")
+
+```
+
+```{r yearly trend of the survival rate at age 1, echo=F, warning=F, message=F, results=F}
+surv_fig = survival %>% filter(age == 2)
+surv_fig = surv_fig %>% mutate(temp = as.numeric(str_sub(surv_fig$year, 3, 4))-1) %>% mutate(temp2 = temp+1) 
+surv_fig = surv_fig %>% mutate(temp3 = ifelse(surv_fig$temp == -1, "99", ifelse(surv_fig$temp < 10, formatC(surv_fig$temp, width = 2, flag = "0"), surv_fig$temp))) %>% mutate(temp4 = ifelse(temp2 < 10, formatC(surv_fig$temp2, width = 2, flag = "0"), ifelse(temp2 == 100, "00", temp2))) %>% mutate(xtitle = paste0(temp3, "→", temp4)) %>% select(surv, xtitle, year)
+
+# surv_fig$
+#   unique(surv_fig$xtitle)
+
+
+g = ggplot(surv_fig, aes(x = year, y = surv))
+p = geom_point(size = 5)
+l = geom_line(size = 1)
+pa = geom_path()
+lab = labs(x = "当年", y = "前年1歳魚尾数に対する当年2歳魚尾数の比率")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.5)),
+           axis.title.y = element_text(size = rel(1.5)),
+           legend.title = element_blank(),
+           strip.text.x = element_text(size = rel(1.8)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+fig_a34 = g+p+pa+lab+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(1996, 2020, by = 2), expand = c(0.03, 0.03))+scale_y_continuous(expand = c(0,0),limits = c(0, 12))
+```
+
+```{r fig4, echo=F, warning=F, message=F, results=F}
+# 3-1 図4: 漁場の空間分布 --------------------------------------------------------------
+x <- read.delim(paste0(dir, "Map.txt"), header=T)
+
+###地図の入ったテキストファイル###
+z <- read.table(paste0(dir, "キアンコウ緯度経度.txt"), header=T, fileEncoding = fileEncoding)
+z2 = read.xlsx(paste0(dir, "okisoko_after2019.xlsx"), sheet = "2019")
+
+head(z2)
+head(z)
+
+for(i in 1 : nrow(z2)) {
+  z2[i, 10] <- as.numeric(z[which(z2[i, 4]==z[, 2]), 5])
+  z2[i, 11] <- as.numeric(z[which(z2[i, 4]==z[, 2]), 6])
+}
+y <- z2 
+colnames(y) <- c(colnames(y)[1:9], "緯度", "経度")
+
+y[, 12] <- as.numeric(as.character(paste(as.numeric(as.character(substr(y$緯度, 1, 2)))+as.numeric(as.character(substr(y$緯度, 4, 5)))/60)))
+y[, 13] <- as.numeric(as.character(paste(as.numeric(as.character(substr(y$経度, 1, 3)))+as.numeric(as.character(substr(y$経度, 5, 6)))/60)))
+y <- data.frame(AREA = tapply(y$漁区, y$漁区, mean), 
+                LAT = tapply(y[, 12], y$漁区, mean), 
+                LONG = tapply(y[, 13], y$漁区, mean), 
+                catch = tapply(y$漁獲量の合計, y$漁区, sum))
+
+
+quartzFonts(HiraKaku = quartzFont(rep("HiraginoSans-W3", 4)))
+theme_set(theme_cowplot(font_family = "HiraKaku")) 
+
+map = ggplot() + coord_fixed() + xlab("Longitude") + ylab("Latitude")
+world_map = map_data("world")
+region2 = subset(world_map, world_map$region == "Japan")
+local_map = map + geom_polygon(data = region2, aes(x = long, y = lat, group = group), colour = "black", fill = "white") + coord_map(xlim = c(140.5, 145.5), ylim = c(35, 43))
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(1.8)),
+           axis.title.y = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)),
+           plot.title = element_text(size = rel(1.8)),
+           legend.title = element_text(size = rel(1.8)),
+           legend.text = element_text(size = rel(1.8)))
+p = geom_point(data = y, aes(x = LONG, y = LAT, colour = catch/1000), shape = 15, size = 4)
+c = scale_colour_gradientn(colours = c("black", "blue", "cyan", "green", "yellow", "orange", "red", "darkred"))
+labs = labs(x = "経度", y = "緯度", colour = "漁獲量（トン）")
+fig4 = local_map+theme_bw(base_family = "HiraKakuPro-W3")+th+p+c+labs+
+  geom_hline(yintercept = 40.5, colour="black", linetype = "dashed")+
+  geom_hline(yintercept = 39, colour="black", linetype = "dashed")+
+  geom_hline(yintercept = 38, colour="black", linetype = "dashed")+
+  geom_hline(yintercept = 36.5, colour="black", linetype = "dashed")+
+  annotate("text",label="尻屋崎", x=144.5, y=41, family="HiraKaku", size = 6)+
+  annotate("text",label="岩手", x=144.3, y=39.5, family="HiraKaku", size = 6)+
+  annotate("text",label="金華山", x=144.4, y=38.5, family="HiraKaku", size = 6)+
+  annotate("text",label="房総", x=144.3, y=37, family="HiraKaku", size = 6) 
+```  
+
+
+```{r figsA3, echo=F, warning=F, message=F, results=F}
+# ---------------------------------------------------------------
+# 3-5  補足図3-1; 調査地点，密度分布，及び体長組成 ---------------------------------
+# ---------------------------------------------------------------
+trawl_length = read.xlsx(paste0(dir, "q_魚種別体長別資源量2020.xlsx")) %>% filter(和名 == "キチジ")
+# trawl_length = read.csv("trawl_ns_length2.csv", fileEncoding = fileEncoding)
+trawl_length1 = trawl_length[, c(6,10,11,15)]
+
+colnames(trawl_length1)
+colnames(trawl_length1) = c("NS", "station_code", "depth", "total_number")
+summary(trawl_length1)
+number_at_depth = ddply(trawl_length1, .(station_code, depth), summarize, total = sum(total_number))
+# number_at_depth$depth2 = as.factor(number_at_depth$depth)
+unique(number_at_depth$depth)
+number_at_depth$depth2 = factor(number_at_depth$depth, levels = c("150", "250", "350", "450", "550", "650", "750", "900"))
+
+g = ggplot(number_at_depth, aes(x = depth2, y = total/1000))
+b = geom_bar(stat = "identity", width = 1, colour = "grey50")
+lab = labs(x = "水深（m）", y = "資源密度", title = "(B)")
+f = facet_wrap(~ station_code, ncol = 2)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.8)),
+           axis.title.y = element_text(size = rel(1.8)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.5)),
+           strip.text.x = element_text(size = rel(1.5)),
+           plot.title = element_text(size = rel(1.5)))
+fig_a31b = g+b+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_y_continuous(expand = c(0,0), breaks=seq(0, 50, by = 20))
+# fig_a31b = g+b+lab+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_y_continuous(expand = c(0,0),limits = c(0, 25))
+
+
+
+trawl_length2 = trawl_length[, c(6,16:ncol(trawl_length))]
+colnames(trawl_length2)
+summary(trawl_length2)
+trawl_length2 = trawl_length2 %>% tidyr::gather(key = temp, value = extention_number, 2:ncol(trawl_length2)) 
+trawl_length2 = trawl_length2 %>% mutate(size_class = as.numeric(str_sub(trawl_length2$temp, 3, 4))) %>% filter(size_class < 32)
+summary(trawl_length2)
+colnames(trawl_length2)[1] = "NS"
+trawl_length2$NS2 = ifelse(trawl_length2$NS == "N", "北部", "南部")
+levels(trawl_length2$NS2)
+trawl_length2$NS2 = factor(trawl_length2$NS2, levels = c("北部", "南部"))
+trawl_length2 = ddply(trawl_length2, .(size_class, NS2), summarize, total = sum(extention_number))
+summary(trawl_length2)
+
+g = ggplot(trawl_length2, aes(x = size_class, y = total/1000, fill = NS2))
+b = geom_bar(stat = "identity", width = 0.8, colour = "black", position = "dodge")
+lab = labs(x = "体長（cm）", y = "資源尾数 (千尾)", title = "(C)")
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.8)),
+           axis.title.y = element_text(size = rel(1.8)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.5)),
+           strip.text.x = element_text(size = rel(1.5)),
+           plot.title = element_text(size = rel(1.5)),
+           legend.position = c(0.1, 0.8),
+           legend.background = element_rect(fill = "white", size = 0.4, linetype = "solid", colour = "black"))
+c = scale_fill_manual(values =  c("black", "white"))
+fig_a31c = g+b+lab+c+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(breaks=seq(0, max(trawl_length2$size_class), by = 2), expand = c(0, 0.5))+scale_y_continuous(expand = c(0,0),limits = c(0, (max(trawl_length2$total/1000))+2))
+
+
+
+lonlat = read.csv(paste0(dir, "lonlat2020.csv"), fileEncoding = fileEncoding)
+lonlat = lonlat[, c(2,3,4,9:12)]
+colnames(lonlat)
+colnames(lonlat) = c("station_code", "depth", "ami", "lat1", "lat2", "lon1", "lon2")
+summary(lonlat)
+lonlat = lonlat %>% mutate(lat = lat1+(round(lat2)/60), lon = lon1+(round(lon2)/60), tag = paste0(station_code, depth, "_", ami))
+# %>% filter(ami == 1)
+# lonlat = ddply(lonlat, .(tag), summarize, m_lon = mean(lon), m_lat = mean(lat))
+
+
+trawl_length = read.csv(paste0(dir, "trawl_ns_length2.csv"), fileEncoding = fileEncoding)
+trawl_length3 = trawl_length[, c(10,11,12)]
+
+colnames(trawl_length3)
+colnames(trawl_length3) = c("station_code", "depth", "ami")
+summary(trawl_length3)
+trawl_length3 = trawl_length3 %>% mutate(tag = paste0(station_code, depth, "_", ami))
+
+length(unique(lonlat$tag))
+length(unique(trawl_length3$tag))
+
+trawl_length3 = left_join(trawl_length3, lonlat %>% select(-station_code, -depth), by = "tag") %>% distinct(tag, .keep_all = TRUE)
+levels(trawl_length3$station_code)
+summary(trawl_length3)
+
+
+### map
+tohoku <- data.frame(read.csv(paste0(dir, "marmap_coord.csv"), fileEncoding = fileEncoding))
+colnames(tohoku) <- c("long","lat","depth")
+check = tohoku[tohoku$depth<0 & tohoku$depth>=-1300,]
+summary(check)
+
+japan <- map_data("japan")
+japan2 <- japan
+japan2$long <- japan$long-0.01
+
+g <- ggplot(subset(tohoku[tohoku$depth<0 & tohoku$depth>=-1300,]),aes(long, lat))
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.5), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.5), colour = "black"),
+           axis.title.x = element_text(size = rel(1.8)),
+           axis.title.y = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.5)),
+           plot.title = element_text(size = rel(1.5)),
+           legend.title = element_text(size = rel(1.5)),
+           legend.text = element_text(size = rel(1.5)),)
+# th = theme(panel.grid.major = element_blank(),
+#            panel.grid.minor = element_blank(),
+#            axis.text.x = element_blank(),
+#            axis.text.y = element_blank(),
+#            axis.title.x = element_text(size = rel(1.5)),
+#            axis.title.y = element_text(size = rel(1.5)),
+#            strip.text = element_text(size = rel(1.3)),
+#            legend.title = element_text(size = 13))
+fig_a31a = g + geom_polygon(data = japan2, group = japan$group, fill= "gray50", colour= "gray50")  + coord_map(xlim = c(140.5, 143), ylim = c(36, 42)) + stat_contour(aes(z=depth),binwidth=200,colour="black")+theme_bw(base_family = "HiraKakuPro-W3")+th+geom_point(data = trawl_length3, aes(x = lon, y = lat, shape = station_code), size = 3)+scale_shape_manual(values = c(15, 4, 17, 8, 18, 16, 1, 2))+labs(title = "(A)", x = "経度", y = "緯度", shape = "調査ライン")
+
+
+
+
+
+
+# ---------------------------------------------------------------
+# 3-56  補足図3-2; 年齢別体長組成（調査） ---------------------------------
+# ---------------------------------------------------------------
+sheets = excel_sheets(paste0(dir, "ALdata.xlsx")) #シート名の取得
+freq_at_age_table = NULL
+for(i in 1:length(sheets)){
+  options(warn=-1)
+  df = read.xlsx(paste0(dir, "ALdata.xlsx"), sheet = sheets[i]) %>% filter(pick == 1) %>% select(label, SL, age)
+  summary(df)
+  mode(df$age)
+  
+  # step 1; remove the data that age is 10+, 10++, and ? --------------------
+  df = df %>% mutate(length_mm = SL, age_num = as.numeric(as.character(age))) #10+, 10++, and ? turned NA
+  summary(df)
+  
+  # step 2; make the tables of number at age (NAA)
+  # !!note!!  use 10+ and 10++
+  head(df)
+  df3 = df %>% select(SL, age) %>% dplyr::rename(length_mm = SL)
+  summary(df3)
+  head(df3)
+  unique(df3$age)
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)))
+  
+  df3 = df3 %>% mutate(fumei = ifelse(df3$age == "?", 100, as.character(df3$age)),
+                       age2 = ifelse(df3$age == "10+", 10, ifelse(df3$age > 9, 10, as.character(df3$age)))) %>% filter(fumei != 100) %>% select(-fumei) %>% mutate(count = 1)
+  unique(df3$age2)
+  df3$age2 = as.numeric(df3$age2)
+  summary(df3$age2)
+  df3$age3 = ifelse(df3$age2 > 10, 10, df3$age2)
+  df3 = na.omit(df3)
+  summary(df3)
+  naa = ddply(df3, .(length_mm, age3), summarize, number = sum(count))
+  
+  length_mm = rep(seq(min(df3$length_mm), max(df3$length_mm)), length(unique(df3$age3))+1) #1761rows
+  age_num = rep(0:max(df3$age3), each = length(unique(length_mm)))
+  tag = data_frame(length_mm = length_mm, age_num = age_num)
+  tag = tag %>% mutate(length_cate = ifelse(length_mm < 100, str_sub(tag$length_mm, 1, 1), str_sub(tag$length_mm, 1, 2)))
+  
+  head(naa)
+  head(tag)
+  
+  naa = naa %>% dplyr::rename(age = age3)
+  tag = tag %>% dplyr::rename(age = age_num)
+  
+  naa2 = merge(naa, tag, by = c("length_mm", "age"), all = T)
+  naa2$number = ifelse(is.na(naa2$number), 0, naa2$number)
+  summary(naa2)
+  NAA = ddply(naa2, .(age, length_cate), summarize, number = sum(number))
+  NAA$length_cate = as.numeric(NAA$length_cate)
+  summary(NAA)
+  
+  # add the data that NAA does not have
+  add = NAA %>% filter(length_cate < min(NAA$length_cate)*2-1)
+  add = add %>% mutate(length_cate = rep(1:(min(add$length_cate)-1)), number = 0)
+  NAA = rbind(add, NAA)
+  NAA = NAA %>% arrange(length_cate, age) 
+  sum = ddply(NAA, .(length_cate), summarize, sum = sum(number))
+  
+  NAA2 = NAA %>% tidyr::spread(key = length_cate, value = number)
+  sum2 = sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  number_at_age = rbind(NAA2, sum2)
+  #write.csv(number_at_age, "number_at_age.csv", fileEncoding = fileEncoding)
+  
+  # step 3; make the tables of age composition (AC)
+  AC = left_join(NAA, sum, by = "length_cate") %>% mutate(freq = ifelse(sum > 0, number/sum, 0))
+  AC = AC %>% select(length_cate, age, freq)
+  a_sum = ddply(AC, .(length_cate), summarize, sum = sum(freq))
+  
+  age_composition = AC %>% tidyr::spread(key = length_cate, value = freq)
+  a_sum2 = a_sum %>% tidyr::spread(key = length_cate, value = sum) %>% mutate(age = "total")
+  age_composition = rbind(age_composition, a_sum2)
+  age_comp = age_composition
+  age_comp = age_comp %>% gather(key = l, value = freq, 2:ncol(age_comp))
+  age_comp = age_comp %>% filter(age != "total") %>% mutate(size_class = as.numeric(str_sub(l, 1,2))) %>% select(-l) %>% mutate(year = sheets[i])
+  
+  len_num = read.csv(paste0(dir, "survey_N_at_length.csv"), fileEncoding = fileEncoding) %>% mutate(year = as.numeric(str_sub(調査種類名称, 1, 4))) %>% filter(year == as.numeric(sheets[i])) %>% select(-year)
+  len_num = len_num[, 16:ncol(len_num)] %>% mutate(site = c("N", "S"))
+  len_num = len_num %>% gather(key = age_j, value = number, 1:(ncol(len_num)-1)) %>% na.omit() %>% mutate(size_class = as.numeric(str_sub(age_j, 3, 4)))
+  surv_n_total = ddply(len_num, .(size_class), summarize, n_total = sum(number))
+  
+  age_comp = full_join(age_comp, surv_n_total, by = "size_class")
+  age_comp = age_comp %>% mutate(number = freq*n_total) %>% filter(age > 0)
+  
+  freq_at_age_table = rbind(freq_at_age_table, age_comp)
+}
+
+
+old = read.csv(paste0(dir, "survey_N_at_age.csv"))
+old = old %>% gather(key = l, value = number, 3:ncol(old))
+old = old %>% mutate(size_class = as.numeric(str_sub(old$l, 2, 4))) %>% select(-l)
+
+new = freq_at_age_table %>% mutate(Age = ifelse(age == 10, "10+", age), Year = year) %>% select(Age, Year, size_class, number)
+all = rbind(old, new)
+
+
+#figure
+levels(all$Age)
+unique(all$Age)
+all$age = factor(all$Age, levels = c("1", "2", "3", "4", "5", "5+", "6", "7", "8", "9", "10+"))
+mode(all$size_class)
+summary(all)
+
+g = ggplot(all, aes(x = size_class, y = number/1000000, fill = age))
+b = geom_bar(stat = "identity", width = 0.5, colour = "black", size = 0.5)
+lab = labs(x = "体長 (cm)", y = "資源尾数 (百万尾)", fill = "年齢")
+col_catch = c("red1", "red1", "darkorange", "goldenrod1", "goldenrod4", "grey60", "palegreen3", "palegreen4", "steelblue3", "steelblue4", "grey60")
+c = scale_fill_manual(values = col_catch)
+f = facet_wrap(~ Year, ncol = 5)
+th = theme(panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           axis.text.x = element_text(size = rel(1.8), angle = 90, colour = "black"),
+           axis.text.y = element_text(size = rel(1.8), colour = "black"),
+           axis.title.x = element_text(size = rel(2)),
+           axis.title.y = element_text(size = rel(2)),
+           legend.title = element_blank(),
+           legend.text = element_text(size = rel(1.8)),
+           strip.text.x = element_text(size = rel(1.8)))
+fig_a32 = g+b+lab+c+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(0, 36, by = 5))+scale_y_continuous(expand = c(0,0))
+```
+
+
+
+
+
+
+
+```{r save, echo=F, warning=F, message=F, results=F}
+dir.create(paste0(dir, "output"))
+dir_output = paste0(dir, "output")
+setwd(dir_output)
+# write.csv(catch_t1, "catch_t1.csv", fileEncoding = fileEncoding)
+# write.csv(catch_t2, "catch_t2.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(catch_new, "catch2020.csv", fileEncoding = fileEncoding, row.names=F) #来年の資源評価で使うデータ
+write.csv(merge, "table1.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(catch_t3, "table2.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(effort_t1, "table3.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(table4, "table4.csv", fileEncoding = fileEncoding, row.names=F)
+
+write.csv(trawl %>% mutate(number = number/1000), "tableA4-1.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(length, "tableA4-2.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(weight, "tableA4-3.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(q, "tableA4-4.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(abund_oct_sel %>% mutate(number_sel_thou = number_sel/1000) %>% dplyr::rename(biomass_sel_ton = biomass_sel) %>% select(-number_sel), "tableA4-5&6.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(est %>% mutate(number = number/1000) %>% dplyr::rename(number_thou = number, biomass_ton = biomass), "tableA4-7&8.csv", fileEncoding = fileEncoding, row.names=F) 
+write.csv(biomass_female %>% mutate(biomass_ton = biomass/1000000) %>% dplyr::rename(year = year2) %>% select(-biomass), "tableA4-8female.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(fishing_trend, "tableA4-9.csv", fileEncoding = fileEncoding, row.names=F)
+write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "table9.csv", fileEncoding = fileEncoding, row.names=F) 
+
+# write.csv(number_at_age %>% dplyr::rename(age_length = age), "number_at_age.csv", fileEncoding = fileEncoding, row.names=F)
+# write.csv(est, "estimated_abundance.csv", fileEncoding = fileEncoding, row.names=F) 
+# write.csv(weight, "weight_at_age.csv", fileEncoding = fileEncoding, row.names=F)
+# write.csv(fishing_trend %>% dplyr::rename(label = data2) %>% select(-data), "fishing_trend.csv", fileEncoding = fileEncoding, row.names=F)
+# write.csv(abc_table, paste0(dir_output, "/abc_table.csv"), fileEncoding = fileEncoding, row.names=F)
+# write.csv(fit2$coefficients, "ALK_fit.csv", fileEncoding = fileEncoding)
+# write.csv(fit3$coefficients, "trend_fit.csv", fileEncoding = fileEncoding)
+
+ggsave(file = "fig4.png", plot = fig4, units = "in", width = 8.27, height = 11.69)  
+# ggsave(file = "fig5.png", plot = fig5, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig5.png", plot = fig5, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
+# ggsave(file = "fig6.png", plot = fig6, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig6.png", plot = fig6, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
+ggsave(file = "fig8.png", plot = grid.arrange(kake, niso, tra, w, ncol = 1), units = "in", width = 9.5, height = 11.69)
+# ggsave(file = "fig8.png", plot = fig8, units = "in", width = 9.5, height = 11.69)
+ggsave(file = "fig9.png", plot = fig9, units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig10.png", plot = fig10, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig10.png", plot = fig10, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
+ggsave(file = "fig11.png", plot = fig11, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig12.png", plot = grid.arrange(trend_f, trend_catch_rate, ncol = 1), units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig12.png", plot = fig12, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig13.png", plot = fig13, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig14.png", plot = grid.arrange(ko, oya, ncol = 1), units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig14.png", plot = fig14, units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "fig15.png", plot = fig15, units = "in", width = 11.69, height = 8.27, scale = 0.9)
+ggsave(file = "fig15.png", plot = fig15, dpi = 400, unit = "cm", width = 11.49, height = 6.88)
+
+# ggsave(file = "figA3-1B.png", plot = fig_a31b, units = "in", width = 8.27, height = 11.69)
+# ggsave(file = "figA3-1B.png", plot = fig_a31b, units = "in", width = 11.69, height = 8.27)
+# ggsave(file = "figA3-1C.png", plot = fig_a31c, units = "in", width = 11.69, height = 8.27)
+layout1 <- rbind(c(1, 2),
+                 c(1, 3))
+# fig_a31 = grid.arrange(fig_a31a, fig_a31b, fig_a31c, layout_matrix = layout1)
+ggsave(file = "figA3-1.png", plot = grid.arrange(fig_a31a, fig_a31b, fig_a31c, layout_matrix = layout1), units = "in", width = 11.69, height = 8.27)
+
+
+ggsave(file = "figA3-2.png", plot = fig_a32, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "figA3-3.png", plot = fig_a33, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "figA3-4.png", plot = fig_a34, units = "in", width = 11.69, height = 8.27, scale = 0.9)
+# ggsave(file = "figA4-1.png", plot = fig_a41, units = "in", width = 11.69, height = 8.27)
+png("ALK.png")
+plotFit(fit, interval = "prediction", ylim = c(0, 250), pch = 19, col.pred = 'light blue', shade=T)
+dev.off()
+```
+
+
+
+
+
+
+# 要約
+#### 今年の資源量（表の上の文章）
+`r trend %>% filter(year == 2021)`
+
+#### 表
+```{r table_s1_summary, echo=F}
+table_s1
+```
+
+#### F current（表の下の文章）
+`r f_current`
+
+#### 2ページ目の表
+```{r table_s2, echo=F}
+table_s2
+```
+
+
+  
+## 3.漁業の状況
+### (2)漁獲量の推移
+#### 2020年の全漁業種類を合わせた漁獲量（1段落目）
+```{r trend of pref. fisheries catch, echo=F}
+total_catch_pref[1,1]
+```
+
+#### 2020年の沖底の漁獲量（2段落目）
+```{r trend of okisoko, echo=F}
+okisoko_all %>% filter(year == (n_year-1))
+# catchF %>% filter(year < 2011) %>% spread(key = year, value = catch)
+# catchF %>% filter(year > 2010) %>% spread(key = year, value = catch)
+```
+
+### (3) 漁獲努力量の推移
+#### 2020年の有漁網数（暫定値）
+```{r trend of effort, echo=F}
+effort_t2
+```
+
+
+## 4.資源の状態
+### (4) 資源量と漁獲割合の推移
+#### 推定資源量（1段落目）
+```{r table_biomass, echo=F}
+trend %>% dplyr::rename(ton = total)
+# %>% filter(year == n_year)
+# trend %>% filter(year < 2011) %>% spread(key = year, value = total)
+# trend %>% filter(year > 2010) %>% spread(key = year, value = total)
+```
+
+#### 資源尾数（2段落目）
+```{r table_N, echo=F, message=F}
+N_trend %>% dplyr::rename(N_thou = number, age = age2)
+
+```
+
+#### F値（3段落目）
+```{r table_fishing trend1, echo=F}
+fishing_trend %>% filter(data == "f") %>% select(-data, -data2) %>% dplyr::rename("F" = value)
+# %>% filter(year == (n_year-1))
+# fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year > 2010, data == "f") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year < 2011, data == "rate") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
+```
+
+#### 漁獲割合（3段落目）
+```{r table_fishing trend2, echo=F}
+fishing_trend %>% filter(data == "rate") %>% select(-data, -data2) %>% dplyr::rename("%" = value)
+# %>% filter(year == (n_year-1))
+# fishing_trend %>% filter(year < 2011, data == "f") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year > 2010, data == "f") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year < 2011, data == "rate") %>% spread(key = year, value = value)
+# fishing_trend %>% filter(year > 2010, data == "rate") %>% spread(key = year, value = value)
+```
+
+### (5) 再生産関係
+```{r rps, echo=F}
+srr %>% select(year2, rps) %>% dplyr::rename(year = year2) %>% filter(year == (n_year-3))
+```
+
+### (7) 資源の水準・動向
+```{r level and trend of biomass}
+# 最小値
+trend %>% filter(total == min(trend$total))
+
+# 最大値
+trend %>% filter(total == max(trend$total))
+
+# 低中位
+(max(trend$total)-min(trend$total))*1/3+min(trend$total)
+
+# 中高位
+max(trend$total)-(max(trend$total)-min(trend$total))*1/3
+```
+
+
+### (9) 生物学的管理基準（漁獲係数）と現状の漁獲圧の関係
+```{r f_current}
+f_current
+```
+
+-----
+## 2022年ABC算定
+### (2) ABCの算定
+#### 2021年の年間生残率（1段落目）
+```{r survival rate}
+s_current
+```
+
+#### 1歳魚が翌年の2歳魚になる比率の直近3年間の平均値（2段落目）
+```{r survival rate at age 1}
+s1_current
+```
+
+#### 2022年の資源量と資源尾数（3段落目）
+```{r stock 2022}
+#資源量
+(total_biomass_next = sum(abund_abc$next_year_biomass))
+
+#尾数
+(total_number_next = sum(abund_abc$next_year_number))
+```
+
+#### 2021年の資源量と資源尾数（3段落目）
+```{r stock 2021, message=F}
+#資源量
+(trend %>% dplyr::rename(ton = total) %>% filter(year == (n_year)))
+
+#尾数
+(est2 %>% dplyr::group_by(year) %>% dplyr::summarize(N_thou = sum(total)/1000) %>% filter(year == (n_year)))
+```
+
+#### 2022年のABC（4段落目と表）
+```{r table_s1, echo=F}
+table_s1
+```
+
+### (4) ABCの再評価（表）
+<!----
+`r (n_year - 1)`年の資源量は`r (total_biomass_this = sum(abund_abc$biomass_est))`，F limitは`r (total_biomass_this = sum(abund_abc$biomass_est))`，F targetは`r (re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)`．  
+漁獲量とFは要約にある．  
+--->
+#### 2020（3行目）
+```{r reABC 2 years ago}
+# 資源量 (2020)
+(total_biomass_last = sum(est %>% filter(year == (n_year-1)) %>% select(biomass)))
+
+# limit (2020)
+(re_abc_limit_last = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_last)
+
+# target (2020)
+(re_abc_target_last = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_last)
+
+# 漁獲量とFは要約にある
+```
+
+#### 2021（5行目）
+```{r reABC last year}
+# 資源量 (2021)
+(total_biomass_this = sum(abund_abc$biomass_est))
+
+# limit (2021)
+(re_abc_limit = (f_limit*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+# target (2021)
+(re_abc_target = (f_target*(1-exp(-z_abc)))/z_abc*total_biomass_this)
+
+```
