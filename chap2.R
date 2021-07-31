@@ -1079,18 +1079,18 @@ ggsave(file = "fig_A33.png", plot = fig_a33, units = "in", width = 11.69, height
 # step 6; get ABC ----------------------------------------------------------
 f_current = fishing_rate %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3)) %>% summarize(mean(f))
 
-# s_pre = Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1))
-# s_current = exp(-s_pre$z)
-s_current = exp(-(Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(z)))
+# mistake in SA2020
+# s_current = exp(-(Z %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)) %>% select(z)))
+s_current = exp(-(M+f_current))
 
 # s1_pre = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2)
 # s1_current = mean(s1_pre$surv)
 s1_current = survival %>% filter(year > ((as.numeric(str_sub(Sys.Date(), 1, 4))-1)-3), age == 2) %>% summarize(mean(surv))
 
 number_2old_oct_last = trawl %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 1) %>% select(number)/1000 * s1_current
-number_2old_jan_this = number_2old_oct_last*survival_2month %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% select(surv)
+number_2old_jan_this = number_2old_oct_last*(survival_2month %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1) %>% select(surv))
 
-number_2old_jan_this_sel = number_2old_jan_this/q %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 2) %>% select(q)
+number_2old_jan_this_sel = number_2old_jan_this/(q %>% filter(year == as.numeric(str_sub(Sys.Date(), 1, 4))-1, age == 2) %>% select(q))
 
 
 ################################################################################################
@@ -1105,22 +1105,41 @@ abund_this =  est %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4)))) %>
 abund_this = left_join(abund_this, weight %>% filter(year == (as.numeric(str_sub(Sys.Date(), 1, 4))-1)), by = c("age")) # get the weight of last year (2020) and join the weight data into the abundance of this year (2021)
 
 next_year = NULL
-for(i in 1:(length(abund_this$age)-1)){
-  #i=1
-  if(i == 1){
-    temp = number_2old_jan_this_sel
-    next_year = rbind(next_year, temp)
-  }
-  if(i < (length(abund_this$age)-1)){
-    temp = abund_this$number_est[i]*s_current$z
-    next_year = rbind(next_year, temp)
-  }
-  if(i == (length(abund_this$age)-1)){
-    temp = (abund_this$number_est[i]+abund_this$number_est[i+1])*s_current$z
-    next_year = rbind(next_year, temp)
-  }
+for(i in unique(abund_this$age)){
+ # # 1歳
+ # temp = number_2old_jan_this_sel*1000
+ # next_year = abind(next_year, temp, along = 1)
+ if(i < 9){
+   temp = (abund_this %>% filter(age == i) %>% select(number_est))*s_current
+   next_year = rbind(next_year, temp)
+ }
+ if(i == 9){
+   temp = ((abund_this %>% filter(age == i) %>% select(number_est)) + (abund_this %>% filter(age == i+1) %>% select(number_est)))*s_current
+   next_year = rbind(next_year, temp)
+ }
 }
 
+temp = data.frame(age = 2, number_est = number_2old_jan_this_sel) %>% dplyr::rename(number_est = number)
+temp2 = data.frame(age = rep(3:10), number_est = next_year)
+next_year = rbind(temp, temp2)
+
+# for(i in 1:(length(abund_this$age)+1)){
+#   #i=1
+#   if(i == 1){# 1歳
+#     temp = number_2old_jan_this_sel*1000
+#     next_year = rbind(next_year, temp)
+#   }
+#   if(i < (length(abund_this$age)-1)){
+#     temp = abund_this$number_est[i]*s_current$z
+#     next_year = rbind(next_year, temp)
+#   }
+#   if(i == (length(abund_this$age)-1)){
+#     temp = (abund_this$number_est[i]+abund_this$number_est[i+1])*s_current$z
+#     next_year = rbind(next_year, temp)
+#   }
+# }
+
+options(scipen=10)
 abund_abc = abund_this %>% mutate(next_year_number = next_year$number/1000) %>% mutate(next_year_biomass = next_year_number*weight/1000)
 
 (total_number_next = sum(abund_abc$next_year_number))
