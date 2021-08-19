@@ -338,7 +338,7 @@ mode(all$size_class)
 summary(all)
 
 g = ggplot(all, aes(x = size_class, y = number/1000000, fill = age))
-b = geom_bar(stat = "identity", width = 0.5, colour = "black", size = 0.5)
+b = geom_bar(stat = "identity", width = 0.8, colour = "black", size = 0.5)
 lab = labs(x = "体長 (cm)", y = "資源尾数 (百万尾)", fill = "年齢")
 col_catch = c("red1", "red1", "darkorange", "goldenrod1", "goldenrod4", "grey60", "palegreen3", "palegreen4", "steelblue3", "steelblue4", "grey60")
 c = scale_fill_manual(values = col_catch)
@@ -353,7 +353,7 @@ th = theme(panel.grid.major = element_blank(),
            legend.text = element_text(size = rel(1.8)),
            strip.text.x = element_text(size = rel(1.8)))
 fig_a32 = g+b+lab+c+f+theme_bw(base_family = "HiraKakuPro-W3")+th+scale_x_continuous(expand = c(0,0), breaks=seq(0, 36, by = 5))+scale_y_continuous(expand = c(0,0))
-ggsave(file = "fig_A32.png", plot = figa32, units = "in", width = 11.69, height = 8.27)
+ggsave(file = "fig_A32.png", plot = fig_a32, units = "in", width = 11.69, height = 8.27)
 
 
 
